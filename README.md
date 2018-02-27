@@ -1,4 +1,6 @@
 # Operativssytem
+How to test this simple implementation
+
 1. gcc netlinkUser.c -o user
 2. make 
 3. insmod netlinkKernel.o
