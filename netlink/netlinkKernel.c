@@ -25,10 +25,10 @@ static void nl_recv_msg(struct sk_buff *skb){
 	skb = nlmsg_new(NLMSG_ALIGN(nl_hdr->nlmsg_len + 1), GFP_KERNEL);
 	
 	pid = nl_hdr->nlmsg_pid;
-	
+	pr_info("this is the pid from nlmsg %d", pid);
 	NETLINK_CB(skb).portid = 0; /* from kernel */ 
 	NETLINK_CB(skb).dst_group = 0; //unicast, default is 0 when initialised in userspace.
-	
+	NETLINK_CB(skb).portid = pid;
 	/*
 	skb_out = nlmsg_new(NLMSG_ALIGN(msg_size + nl_hdr->nlmsg_len), 0);
 	

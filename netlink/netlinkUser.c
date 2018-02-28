@@ -5,9 +5,9 @@
 #include <zconf.h>
 #include <stdlib.h>
 
-#define SUCCESS			1
+#define SUCCESS			0
 #define ERROR			-1
-#define MAX_PAYLOAD     4096
+#define MAX_PAYLOAD     1024
 #define NETLINK_USER    31
 
 struct sockaddr_nl src_addr, dest_addr;
@@ -15,6 +15,9 @@ int sock_fd;
 struct nlmsghdr *nl_hdr = NULL;
 struct iovec iov;
 struct msghdr msg;
+pid_t PID;
+
+
 void set_src_addr(void);
 void set_dest_addr(void);
 void send_message(char*);
@@ -30,6 +33,7 @@ int main(int argc, char* argv[]) {
     //TODO send in correct params for both src and dest
     set_src_addr();
     set_dest_addr();
+
     if(open_connection() != 0){
         fprintf(stderr, "Could not connect\n");
         return ERROR;
@@ -66,13 +70,16 @@ void send_message(char *message){
 
     //struct iovec iov = {nl_hdr, nl_hdr->nlmsg_len};
     //struct msghdr msg =  { &dest_addr, sizeof(dest_addr), &iov, 1, NULL, 0, 0 };
-
+	PID = getpid();
+	
     nl_hdr = (struct nlmsghdr*)malloc(NLMSG_SPACE(MAX_PAYLOAD));
     memset(nl_hdr, 0 , sizeof(nl_hdr));
     nl_hdr->nlmsg_len = NLMSG_LENGTH(NLMSG_SPACE(sizeof(message)));
-    nl_hdr->nlmsg_pid = 0;
+    nl_hdr->nlmsg_pid = PID;
     nl_hdr->nlmsg_flags = 0;
 
+
+	
     iov.iov_base = (void*)nl_hdr;
     iov.iov_len = nl_hdr->nlmsg_len;
     msg.msg_name = (void *)&dest_addr;
@@ -81,7 +88,9 @@ void send_message(char *message){
     msg.msg_iovlen = 1;
 
 
+	printf("copying data to nl_hdr with pid: %d\n", PID);
     strcpy(NLMSG_DATA(nl_hdr), message);
+	printf("copieddata to nl_hdrwith pid: %d\n", PID);
 
     sendmsg(sock_fd, &msg, 0);
     printf("PID-%d sending with payload:\n%s\n", src_addr.nl_pid,(char*)NLMSG_DATA(nl_hdr));
