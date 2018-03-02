@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <sys/socket.h>
+#include "TLV/tlv.h"
 #include <linux/netlink.h>
 #include <string.h>
 #include <zconf.h>
@@ -27,7 +28,8 @@ int seqNo = 1337;
 
 void set_src_addr(void);
 void set_dest_addr(void);
-void send_message(char*);
+int32_t conf_msg(int option, char* message, int key, unsigned char* buffer);
+void send_message(int instruction, char* message);
 int recieve_message(void);
 int open_connection(void);
 
@@ -45,7 +47,7 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Could not connect\n");
         return ERROR;
     }
-    send_message("Hello kernel, this is from user-space\n" );
+    send_message(2, "hello my friend");
     return SUCCESS;
 }
 
@@ -72,12 +74,21 @@ void set_dest_addr(){
 
 }
 
-void send_message(char *message){
+int32_t conf_msg(int option, char* message, int key, unsigned char* buffer) {
+	struct TLV_holder holder; 
+	//TODO FIX inparameters, set upp correct messages and return serialized.
+	return tlv_success;
+}
+
+void send_message(int option, char *message){
 	
+	unsigned char buffer[MAX_PAYLOAD];
     //struct iovec iov = {nl_hdr, nl_hdr->nlmsg_len};
     //struct msghdr msg =  { &dest_addr, sizeof(dest_addr), &iov, 1, NULL, 0, 0 };
 	PID = getpid();
 	
+	
+	//TODO try to fix sizes of msg and setup depending on created tlv buffer.
     nl_hdr = (struct nlmsghdr*)malloc(NLMSG_SPACE(MAX_PAYLOAD));
     memset(nl_hdr, 0 , sizeof(struct nlmsghdr));
     nl_hdr->nlmsg_len = NLMSG_LENGTH(NLMSG_SPACE(MAX_PAYLOAD));
@@ -93,6 +104,7 @@ void send_message(char *message){
     msg.msg_iovlen = 1; /* number of iov structs. */ 
 
 	printf("copying data to nl_hdr with pid: %d\n", PID);
+    //TODO Use tlv to prepare a message And fix to correct size, as buffer.
     strcpy(NLMSG_DATA(nl_hdr), message);
 	printf("copieddata to nl_hdrwith pid: %d\n", PID);
 	
@@ -102,7 +114,6 @@ void send_message(char *message){
     if(recieve_message() != 0){
     	printf("an error occured while recieving message\n");
     	return;
-    
     }
 	free(nl_hdr);
 }
@@ -125,8 +136,9 @@ int recieve_message(){
     if(nl_hdr->nlmsg_pid != 0){
         printf("msg from unknown source, it has: %d \n", nl_hdr->nlmsg_pid);
     }
+    //TODO Parse with deserialize to get the data. Create a parse_incoming or smth.
     printf("Message recieved %s\n With len:%d\n", (char*)NLMSG_DATA(nl_hdr), nl_hdr->nlmsg_len);
-
+	
     close(sock_fd);
 
     return SUCCESS;
