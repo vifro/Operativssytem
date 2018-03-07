@@ -7,12 +7,13 @@
 * Supported data types is currently strings and integers. 
 * 
 * ex: of payload
+*   1 = int || 2 = char*
 *
 *	type---len---value
-*	First obj  - INTEGER/4/WRITE_INSTR  
+*	First obj  - 1/4/WRITE_INSTR  
 *
-*	Second obj - STRING/sizeof(char*)/"Name Namesson" 
-*    
+*	Second obj - 2/sizeof(char*)/"Name Namesson" 
+*   
 */		
 
 
@@ -39,8 +40,8 @@
 * Type -length -value struct
 */
 struct TLV {
-	int8_t type;
-	int16_t len;
+	int8_t type;   // max types is 255
+	int16_t len;   // not a bigger size then 65535
 	int32_t *data; // pntr to data
 };
 
@@ -62,11 +63,11 @@ typedef enum {INTEGER = 1, STRING} datatypes; // 1 and 2
 /* Returns how many bytes has been used to create a tlv type. */
 
 
-int32_t add_integer(struct TLV_holder *tlvs, int integer);
-int32_t add_string(struct TLV_holder *tlvs, const char* string);
-int32_t add_raw_tlv(struct TLV_holder *tlvs, const unsigned char type,const int32_t size, const void* ptr);
-int32_t serialize_tlv(struct TLV_holder *src,  unsigned char* dest, int32_t *byte_counter);
-int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,  int32_t nr_of_bytes);
+int32_t tlv_add_integer(struct TLV_holder *tlvs, int integer);
+int32_t tlv_add_string(struct TLV_holder *tlvs, const char* string);
+int32_t add_raw_tlv(struct TLV_holder *tlvs, const unsigned char type,const int16_t size, const void* ptr);
+int32_t serialize_tlv(struct TLV_holder *src,  unsigned char* dest, int *byte_counter);
+int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,  int nr_of_bytes);
 int32_t free_tlv(struct TLV_holder *tlvs); 
 int32_t print_tlv(struct TLV_holder *tlvs);
 

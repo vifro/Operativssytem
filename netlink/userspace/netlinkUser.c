@@ -6,6 +6,9 @@
 #include <zconf.h>
 #include <stdlib.h>
 
+#include <linux/genetlink.h>
+
+
 
 #define SUCCESS			0
 #define ERROR			-1
@@ -18,8 +21,10 @@ struct sockaddr_nl src_addr, dest_addr;
 int sock_fd, seqNo;
 struct iovec iov;
 struct msghdr msg;
-
 /*NETLINK message pointers */
+
+//TODO Implement nlattr to send correct shit
+struct nlattr *na; 
 struct nlmsghdr *nl_hdr = NULL;
 
 /*Process pid*/
@@ -29,16 +34,27 @@ int seqNo = 1337;
 void set_src_addr(void);
 void set_dest_addr(void);
 int32_t conf_msg(int option, char* message, int key, unsigned char* buffer);
-void send_message(int instruction, char* message);
+void send_message(int payload_length,unsigned char* mess);
+
 int recieve_message(void);
 int open_connection(void);
 
 
 int main(int argc, char* argv[]) {
-
-    printf("Hello, World! This is a test of simple netlink implementation\n");
     
+    printf("Hello, World! This is a test of simple netlink implementation\n");
+    struct TLV_holder tlv_holder1, tlv_holder2;
+    memset(&tlv_holder1, 0 , sizeof(tlv_holder1));
 
+    unsigned char buffer[MAX_PAYLOAD];
+    int pload_len;
+    
+    tlv_add_string(&tlv_holder1, "hello kernel, tlv mess here..");
+    serialize_tlv(&tlv_holder1, buffer, &pload_len);
+    print_tlv(&tlv_holder1);
+    deserialize_tlv(&tlv_holder2, buffer, pload_len);
+    print_tlv(&tlv_holder2);
+    
     //TODO send in correct params for both src and dest
     set_src_addr();
     set_dest_addr();
@@ -47,7 +63,16 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Could not connect\n");
         return ERROR;
     }
-    send_message(2, "hello my friend");
+    send_message(pload_len, buffer);
+    
+    if(recieve_message() != 0){
+    	printf("an error occured while recieving message\n");
+    	return ERROR;
+    }
+    
+	free(nl_hdr);
+
+    
     return SUCCESS;
 }
 
@@ -56,8 +81,9 @@ void set_src_addr(){
     memset(&src_addr, 0, sizeof(struct sockaddr_nl));
     src_addr.nl_family = AF_NETLINK;
 
-    /*If pid is set before bind, application has the responsibility to add unique pid to each connection
-     * identifies a socket, not a process. */
+    /*If pid is set before bind, application has the responsibility to add 
+    *  unique pid to each connection. Identifies a socket, not a process. 
+    */
     src_addr.nl_pid = getpid();
 
     //src_addr.nl_groups = 0-32 , default is 0, each family has 23 grops.
@@ -66,23 +92,21 @@ void set_src_addr(){
 }
 
 void set_dest_addr(){
-
     memset(&dest_addr, 0, sizeof(struct sockaddr_nl));
     dest_addr.nl_family = AF_NETLINK;
     dest_addr.nl_pid = 0;
     dest_addr.nl_groups = 0;
-
 }
 
 int32_t conf_msg(int option, char* message, int key, unsigned char* buffer) {
-	struct TLV_holder holder; 
+    
 	//TODO FIX inparameters, set upp correct messages and return serialized.
 	return tlv_success;
 }
 
-void send_message(int option, char *message){
+void send_message(int len, unsigned char *message){
 	
-	unsigned char buffer[MAX_PAYLOAD];
+	//unsigned char buffer[MAX_PAYLOAD];
     //struct iovec iov = {nl_hdr, nl_hdr->nlmsg_len};
     //struct msghdr msg =  { &dest_addr, sizeof(dest_addr), &iov, 1, NULL, 0, 0 };
 	PID = getpid();
@@ -91,7 +115,7 @@ void send_message(int option, char *message){
 	//TODO try to fix sizes of msg and setup depending on created tlv buffer.
     nl_hdr = (struct nlmsghdr*)malloc(NLMSG_SPACE(MAX_PAYLOAD));
     memset(nl_hdr, 0 , sizeof(struct nlmsghdr));
-    nl_hdr->nlmsg_len = NLMSG_LENGTH(NLMSG_SPACE(MAX_PAYLOAD));
+    nl_hdr->nlmsg_len = NLMSG_LENGTH(len); // length of payload without NLMSG_ALIGN
     nl_hdr->nlmsg_pid = PID;
     nl_hdr->nlmsg_flags = 0;
     nl_hdr->nlmsg_seq = seqNo++;
@@ -105,25 +129,25 @@ void send_message(int option, char *message){
 
 	printf("copying data to nl_hdr with pid: %d\n", PID);
     //TODO Use tlv to prepare a message And fix to correct size, as buffer.
-    strcpy(NLMSG_DATA(nl_hdr), message);
+    //strcpy(NLMSG_DATA(nl_hdr), message);
+    memcpy(NLMSG_DATA(nl_hdr), message, len);
+    
 	printf("copieddata to nl_hdrwith pid: %d\n", PID);
 	
     sendmsg(sock_fd, &msg, 0);
     printf("PID-%d sending with payload:\n%s\n", src_addr.nl_pid,(char*)NLMSG_DATA(nl_hdr));
 
-    if(recieve_message() != 0){
-    	printf("an error occured while recieving message\n");
-    	return;
-    }
-	free(nl_hdr);
+
 }
 
 int recieve_message(){
     
-	
     //memset(&msg, 0 , sizeof(struct msghdr));
-	
-	
+	struct TLV_holder tlv_reciever;
+    memset(&tlv_reciever, 0 , sizeof(tlv_reciever));
+
+    unsigned char buffer[MAX_PAYLOAD];
+
     iov.iov_base = (void *)nl_hdr;
     iov.iov_len  = nl_hdr->nlmsg_len;
     msg.msg_name = (void*) &src_addr;
@@ -133,10 +157,16 @@ int recieve_message(){
 	printf("waiting to recieve message from kernel\n");
     recvmsg(sock_fd, &msg, 0);
 	
+    deserialize_tlv(&tlv_reciever, NLMSG_DATA(nl_hdr), nl_hdr->nlmsg_len);
+    print_tlv(&tlv_reciever);
+
     if(nl_hdr->nlmsg_pid != 0){
         printf("msg from unknown source, it has: %d \n", nl_hdr->nlmsg_pid);
     }
-    //TODO Parse with deserialize to get the data. Create a parse_incoming or smth.
+
+    //TODO Parse with deserialize to get the data. Create a parse_incoming.
+
+    
     printf("Message recieved %s\n With len:%d\n", (char*)NLMSG_DATA(nl_hdr), nl_hdr->nlmsg_len);
 	
     close(sock_fd);

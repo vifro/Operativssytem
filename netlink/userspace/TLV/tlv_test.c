@@ -9,14 +9,16 @@ int main(int argc, char* argv) {
     memset(&tlv_holder2, 0 , sizeof(tlv_holder2));
 
     unsigned char buffer[4096] = {0};
-    int32_t buffer_length = 0;
+    int buffer_length = 0;
     
-    add_integer(&tlv_holder1, 123);
-    add_string(&tlv_holder1, "name Jameson");
+    tlv_add_integer(&tlv_holder1, 123);
+    tlv_add_string(&tlv_holder1, "name Jameson");
     
     printf("Calling serialize.. \n");
     /* Serialize buffer and send to target */
     int i = serialize_tlv(&tlv_holder1, buffer, &buffer_length);
+    printf("strlen of buffer is %ld\n", sizeof(buffer)/sizeof(unsigned char));
+    
     printf("return value from ser is : %d\n", i);
     print_tlv(&tlv_holder1);
     

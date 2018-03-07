@@ -15,6 +15,10 @@
 * available and not used by other subsystems.
 */
 
+#define INT8_SIZE   1
+#define INT16_SIZE  2
+#define INT32_SIZE  4
+
 #ifndef NETLINK_USER 
 #define NETLINK_USER 31
 #endif
@@ -23,8 +27,16 @@
 #define MAX_PAYLOAD 1024
 #endif
 
-
+unsigned char *ptr;
 struct sock *nl_sock = NULL;
+
+struct TLV {
+	    int8_t type;   // max types is 255
+	    int16_t len;   // not a bigger size then 65535
+	    int32_t *data; // pntr to data
+};
+struct TLV tlv_test;    
+
 
 /*
 * Send back to user, given sequence number and the pid of process to be reached.
@@ -36,6 +48,8 @@ int nl_send_msg(u32 rec_pid , int seq) {
 	struct nlmsghdr *nl_hdr;
 	int err;
 	
+
+    
 	/* Allocate a new netlink message */
 	skb = nlmsg_new(NLMSG_SPACE(MAX_PAYLOAD), GFP_KERNEL);
 	
@@ -57,16 +71,19 @@ int nl_send_msg(u32 rec_pid , int seq) {
 	
 	pr_info("pid recieved: %d \n and seq is: %d\n" , rec_pid, seq);
 		
-	strcpy(NLMSG_DATA(nl_hdr), "Hello user, this is the kernel");
+	strcpy(NLMSG_DATA(nl_hdr), "change this");
 	
 	err =  nlmsg_unicast(nl_sock, skb, rec_pid);
 	if(err < 0) {
 		pr_info("Failed to send data\n");
 		return -1;
 	}
+    
+
 	pr_info("Sent message: %s \n", (char*)NLMSG_DATA(nl_hdr));
 	return 0;
 }
+
 
 /*
 * Callback function that 
@@ -77,25 +94,83 @@ static void nl_recv_callback(struct sk_buff *skb){
     struct nlmsghdr *nl_hdr;
     u32 pid;
 	int seq;
-
-    /*
-     * static DEFINE_MUTEX(nl_cfg_mutex);
-     *  Check
-     *  mutex_lock(nl_mutex_lock);
-     * and
-     * mutex_unlock(nl_mutex_unlock);
-     * */
-
-    //int err;
+    int byte_counter;
     int err;
-    pr_info("Entering %s \n", __FUNCTION__);
+    int i;
+    int temp;
+    
+    unsigned char buffer[512]; // FIX the size
 
+    
+    pr_info("Entering %s \n", __FUNCTION__);
+    
     nl_hdr=(struct nlmsghdr*)skb->data;
     pid = nl_hdr->nlmsg_pid;
 	seq = nl_hdr->nlmsg_seq;
 	
-	pr_info("Netlink recieved message with payload: %s \n",(char*)NLMSG_DATA(nl_hdr));
-	
+	pr_info("Netlink recieved message with payload: %s \n",(unsigned char*)NLMSG_DATA(nl_hdr));
+	   
+    
+    
+    /* -----------------------------------------------------------------------*/
+    /* -----------------------------------------------------------------------*/
+    /* This is a test for parsing some data    */
+    
+    /* Type -length -value struct
+    */
+    memset(buffer, 0 , sizeof(buffer));
+    memcpy(buffer, NLMSG_DATA(nl_hdr), NLMSG_PAYLOAD(nl_hdr, 0));
+    
+    
+    
+    //ptr = NLMSG_DATA(nl_hdr);
+    
+    byte_counter = 0;
+    
+    
+        pr_info("byte counter is %d, and tot bytes is %d \n", byte_counter, NLMSG_PAYLOAD(nl_hdr, 0));     
+        
+        tlv_test.type = buffer[byte_counter];
+        byte_counter += INT8_SIZE;
+        pr_info("byte counter: %d \n", byte_counter);
+        
+        memcpy(&tlv_test.len, &buffer[byte_counter], INT16_SIZE);
+        byte_counter += INT16_SIZE;
+        pr_info("byte counter is %d\n", byte_counter);
+        
+        if(tlv_test.len != 0) {
+            
+            tlv_test.data = kmalloc(tlv_test.len + 1, GFP_ATOMIC);
+            memset(tlv_test.data ,0, tlv_test.len + 1);
+            memcpy(tlv_test.data, &buffer[byte_counter], tlv_test.len);              
+            byte_counter += tlv_test.len + 1;
+            pr_info("byte counter is %d\n", byte_counter);
+            
+            
+            
+            
+        } else {
+            pr_info("len is zero, nothing to parse.....\n");        
+        }
+        
+    if(tlv_test.data == NULL) {
+        pr_info("tlv.data is NULL");
+    }             
+    i = 0;
+       
+    pr_info("\ntlv.type: %d\n", tlv_test.type);
+    pr_info("tlv.len: %d\n", tlv_test.len);
+    /*    
+    memcpy(&temp, tlv_test.data, sizeof(int32_t));
+    pr_info("data is: %d\n", temp);
+    */
+    pr_info("data: %s \n", (char*)tlv_test.data);
+   
+    /* -----------------------------------------------------------------------*/
+    /* -----------------------------------------------------------------------*/         
+    
+    
+    
 	err = do_something(pid, seq); 
 	
 	if(err < 0)
@@ -105,6 +180,8 @@ static void nl_recv_callback(struct sk_buff *skb){
     pr_info("message sent over socket");
 	
 }
+
+
 
 /** 
 * module init:
