@@ -1,33 +1,30 @@
-/*
-* File for serializing and deserializing a tlv obj
-*
-*/
-
+#include <linux/kernel.h>
+#include <linux/module.h>
 #include "tlv.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <asm/types.h>
+#include <linux/slab.h>
+#include <linux/string.h>
 
-#define INT8_SIZE   1
-#define INT16_SIZE  2
-#define INT32_SIZE  4
 
-datatypes type_string = STRING;
-datatypes type_int    = INTEGER;
+DATATYPES type_string = TLV_STRING;
+DATATYPES type_int    = TLV_INTEGER;
+DATATYPES type_instr  = TLV_INSTR;
+
+int byte_counter;
 
 int32_t tlv_add_integer(struct TLV_holder* holders, int32_t number)
 {
-    printf("add_integer with type %d\n", type_int );
-    printf("size: %d\n", INT32_SIZE);
-    printf("integer: %d\n", number);
+    pr_info("add_integer with type %d\n", type_int );
+    pr_info("size: %d\n", INT32_SIZE);
+    pr_info("integer: %d\n", number);
 	return add_raw_tlv(holders, type_int, INT32_SIZE, &number); 
 }
 
 int32_t tlv_add_string(struct TLV_holder* holders, const char* string) 
 {
-    printf("add_string with type %d\n", type_string );
-    printf("size: %ld\n", strlen(string) + 1);
-    printf("string: %s\n", string);
+    pr_info("add_string with type %d\n", type_string );
+    pr_info("size: %ld\n", strlen(string) + 1);
+    pr_info("string: %s\n", string);
 	return add_raw_tlv(holders, type_string, strlen(string) + 1, string);
 }
 
@@ -43,17 +40,19 @@ int32_t tlv_add_string(struct TLV_holder* holders, const char* string)
 int32_t add_raw_tlv(struct TLV_holder* holders, const unsigned char type, 
 					const int16_t len, const void *data)
 {
+    int index;    
+    
 	if(holders->nr_of_structs > 1 || data == NULL || holders == NULL) 
         return tlv_failed;
     
-    int index = holders->nr_of_structs++; 
+    index = holders->nr_of_structs++; 
     
     if(index  > 1) 
         return tlv_failed;
 
     holders->tlv_arr[index].type = type;
     holders->tlv_arr[index].len = len;
-    holders->tlv_arr[index].data = malloc(len); // Change to kmalloc in kernel, GFP_ATOMIC!!!!
+    holders->tlv_arr[index].data = kmalloc(len, GFP_ATOMIC); 
     
     memcpy(holders->tlv_arr[index].data, data, len); 
     
@@ -70,7 +69,7 @@ int32_t free_tlv(struct TLV_holder *tlvs)
     
     while(index < tlvs->nr_of_structs) {
         if(tlvs->tlv_arr[index].data != NULL)
-            free(tlvs->tlv_arr[index].data); //Use kfree or vfree  in kernel       
+            kfree(tlvs->tlv_arr[index].data); //Use kfree or vfree  in kernel       
         index++;
     }
     return tlv_success;
@@ -80,17 +79,21 @@ int32_t free_tlv(struct TLV_holder *tlvs)
 * Serializing a TLV struct to a array of bytes.  
 *
 */
-
 int32_t serialize_tlv(struct TLV_holder *src, unsigned char* dest, 
                         int *byte_counter)
 {
-    printf("------> IN SERIALIZE <----------\n\n");
-    //TODO check if src of dest is null
     int32_t tot_bytes  = 0;
     int index = 0;
-    printf("nr_of_structs is: %d\n", src->nr_of_structs);
+    
+    pr_info("------> IN SERIALIZE <----------\n\n");
+    if(src == NULL || dest == NULL){
+        pr_err("[kernel] - Serialize got Null object");
+        return tlv_failed;    
+    }
+    
+    pr_info("nr_of_structs is: %d\n", src->nr_of_structs);
     for(; index < src->nr_of_structs; index++) {
-        printf("index is: %d\n", index);
+        pr_info("index is: %d\n", index);
         dest[tot_bytes] = src->tlv_arr[index].type;
         tot_bytes += INT8_SIZE;
         
@@ -102,49 +105,52 @@ int32_t serialize_tlv(struct TLV_holder *src, unsigned char* dest,
         
  
     }
-    printf("total bytes is: %d\n",tot_bytes);
+    pr_info("total bytes is: %d\n",tot_bytes);
     *byte_counter = tot_bytes;
     
     return tlv_success;
 }
+
 /*
-* 
 * deserializeing a byte array to a TLV struct.
 *
 */
 int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src, 
                             int tot_bytes)
 {
-    //TODO Check if src and dest is null
-    printf("------> IN deSERIALIZE <----------\n\n"); 
-    printf("tot_bytes = %d\n", tot_bytes );
+
+//TODO Check if src and dest is null
+    pr_info("------> IN DESERIALIZE [module] <----------\n\n"); 
+    pr_info("tot_bytes = %d\n", tot_bytes );
     
-    int byte_counter = 0;
+     byte_counter = 0;
 
     while(byte_counter < tot_bytes) {
-        printf("byte counter is %d, and tot bytes is %d \n", byte_counter, tot_bytes);
+        pr_info("byte counter is %d, and tot bytes is %d \n", byte_counter, tot_bytes);
 
-        printf("dest->nr_of_structs = %d\n", dest->nr_of_structs);       
+        pr_info("dest->nr_of_structs = %d\n", dest->nr_of_structs);       
         if(dest->nr_of_structs > MAX_OBJS - 1) 
             return tlv_failed;        
         
         dest->tlv_arr[dest->nr_of_structs].type = src[byte_counter];
         byte_counter += INT8_SIZE;
-        printf("byte counter is %d\n", byte_counter);
+        pr_info("byte counter is %d\n", byte_counter);
         
         memcpy(&dest->tlv_arr[dest->nr_of_structs].len, &src[byte_counter], INT16_SIZE);
         byte_counter += INT16_SIZE;
-        printf("byte counter is %d\n", byte_counter);
+        pr_info("byte counter is %d\n", byte_counter);
 
         if(dest->tlv_arr[dest->nr_of_structs].len != 0) {
-            dest->tlv_arr[dest->nr_of_structs].data = malloc(dest->tlv_arr[dest->nr_of_structs].len);
+            dest->tlv_arr[dest->nr_of_structs].data = 
+                    kmalloc(dest->tlv_arr[dest->nr_of_structs].len, GFP_ATOMIC);
+    
             memcpy(dest->tlv_arr[dest->nr_of_structs].data, &src[byte_counter], 
                     dest->tlv_arr[dest->nr_of_structs].len);
         
             byte_counter += dest->tlv_arr[dest->nr_of_structs].len;
-            printf("byte counter is %d\n", byte_counter);
+            pr_info("byte counter is %d\n", byte_counter);
         } else {
-            dest->tlv_arr[dest->nr_of_structs].data == NULL;
+            //TODO handle
         }
         
         dest->nr_of_structs++;
@@ -153,30 +159,29 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
     return tlv_success;
 }
 
-
 /* 
 * Print function for checking TLV attributes.
 */
 int32_t print_tlv(struct TLV_holder *src) {
-        
+    int temp;
     int index = 0;    
-    printf("--------------> In print_tlv <----------------\n");    
+    
+    pr_info("--------------> In print_tlv <----------------\n");   
+     
     while (index < src->nr_of_structs) {
-        printf("index is: %d\n", index);
-        //printf("obj_nr: %d\n", index);
-        //printf("type: %d\n",&src->tlv_arr[index].type);  
-        //printf("size: %d\n", &src->tlv_arr[index].len);
-        if(src->tlv_arr[index].type == type_int){
-            printf("type is: %d\n", (int)src->tlv_arr[index].type);
-            int temp;
+        pr_info("index is: %d\n", index);
+        
+        if(src->tlv_arr[index].type == type_int || 
+           src->tlv_arr[index].type == type_instr) {
+            pr_info("type is: %d\n", (int)src->tlv_arr[index].type);
             memcpy(&temp, src->tlv_arr[index].data, sizeof(int32_t));
-            printf("data is: %d\n", temp);
+            pr_info("data is: %d\n", temp);
         } else if(src->tlv_arr[index].type == type_string) {
-            printf("type is: %d\n", (int)src->tlv_arr[index].type);
-            printf("len is: %d\n", (int)src->tlv_arr[index].len);
-            printf("data: %s\n", (char*)src->tlv_arr[index].data);
-        } else {
-            printf("this <-- is not a valid data type");
+            pr_info("type is: %d\n", (int)src->tlv_arr[index].type);
+            pr_info("len is: %d\n", (int)src->tlv_arr[index].len);
+            pr_info("data: %s\n", (char*)src->tlv_arr[index].data);
+        } else if(src->tlv_arr[index].type == type_instr){
+            pr_info("this <-- is not a valid data type");
         }
               
         index++;
@@ -184,8 +189,3 @@ int32_t print_tlv(struct TLV_holder *src) {
 
     return tlv_success;
 }
-
-
-
-
-

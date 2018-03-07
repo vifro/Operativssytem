@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
 
     unsigned char buffer[MAX_PAYLOAD];
     int pload_len;
-    
+    tlv_add_instruction(&tlv_holder1, 1);
     tlv_add_string(&tlv_holder1, "hello kernel, tlv mess here..");
     serialize_tlv(&tlv_holder1, buffer, &pload_len);
     print_tlv(&tlv_holder1);
