@@ -69,7 +69,7 @@ int nl_send_msg(u32 rec_pid , int seq, int status) {
 	
     /* Fill the header with data */
 	nl_hdr = (struct nlmsghdr*)skb->data;
-	nl_hdr->nlmsg_len = NLMSG_LENGTH(MAX_PAYLOAD);
+	nl_hdr->nlmsg_len = NLMSG_LENGTH(pload_length);
 	nl_hdr->nlmsg_pid = 0; 
 	nl_hdr->nlmsg_flags = 0;
 	

@@ -5,7 +5,7 @@
 #include <string.h>
 #include <zconf.h>
 #include <stdlib.h>
-
+#include <unistd.h>
 #include <linux/genetlink.h>
 
 
@@ -48,6 +48,8 @@ int main(int argc, char* argv[]) {
     unsigned char buffer[MAX_PAYLOAD] = {0};
     int pload_len = 0;
     int err = 0;
+    int i = 0;
+    
     
     
     /* Message out, build, serialize, print for debugging and free */
@@ -73,11 +75,15 @@ int main(int argc, char* argv[]) {
         return ERROR;
     }
     
-    send_message(pload_len, buffer);
-    
-    if(recieve_message() != 0){
-    	printf("an error occured while recieving message\n");
-    	return ERROR;
+    while(i < 100){
+    	sleep(1); // seconds
+		send_message(pload_len, buffer);
+		
+		if(recieve_message() != 0){
+			printf("an error occured while recieving message\n");
+			return ERROR;
+		}
+		i++;
     }
     
     close(sock_fd);
@@ -195,31 +201,29 @@ int recieve_message(){
     //memset(&msg, 0 , sizeof(struct msghdr));
 	struct TLV_holder tlv_reciever;
     memset(&tlv_reciever, 0 , sizeof(tlv_reciever));
-
-    unsigned char buffer[MAX_PAYLOAD];
-
+	memset(nl_hdr, 0 , sizeof(struct nlmsghdr));
+	/*
     iov.iov_base = (void *)nl_hdr;
     iov.iov_len  = nl_hdr->nlmsg_len;
     msg.msg_name = (void*) &src_addr;
     msg.msg_namelen = sizeof(src_addr);
-
+	*/
 	/*recvmsg blocks api until message is recieved.*/
 	printf("waiting to recieve message from kernel\n");
     recvmsg(sock_fd, &msg, 0);
 	
-    /*Deserialize, print then free tlv holder */
-    deserialize_tlv(&tlv_reciever, NLMSG_DATA(nl_hdr), nl_hdr->nlmsg_len);
-    print_tlv(&tlv_reciever);
-    free_tlv(&tlv_reciever);
-
     if(nl_hdr->nlmsg_pid != 0){
         printf("msg from unknown source, it has: %d \n", nl_hdr->nlmsg_pid);
     }
 
     //TODO Parse with deserialize to get the data. Create a parse_incoming.
-
+	/*Deserialize, print then free tlv holder */
+    //deserialize_tlv(&tlv_reciever, NLMSG_DATA(nl_hdr), nl_hdr->nlmsg_len);
+    deserialize_tlv(&tlv_reciever, NLMSG_DATA(nl_hdr), 7);
+    print_tlv(&tlv_reciever);
+    free_tlv(&tlv_reciever);
     
-    printf("Message recieved %s\n With len:%d\n", (char*)NLMSG_DATA(nl_hdr), nl_hdr->nlmsg_len);
+    printf("Message recieved %s\n With len:%d\n", (char*)NLMSG_DATA(nl_hdr), nl_hdr->nlmsg_len );
 	
     close(sock_fd);
     
