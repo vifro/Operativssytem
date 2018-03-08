@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
         return ERROR;
     }
     
-    while(i < 100){
+    while(i < 10){
     	sleep(1); // seconds
         /* Message out, build, serialize, print for debugging and free */
         pload_len = cr_tlv_msg(buffer);
@@ -75,12 +75,12 @@ int main(int argc, char* argv[]) {
 			return ERROR;
 		}
         memset(buffer, 0, sizeof(buffer));
-        
+        free(nl_hdr);
 		i++;
     }
     
     close(sock_fd);
-	free(nl_hdr);
+	
     
     return SUCCESS;
 }
