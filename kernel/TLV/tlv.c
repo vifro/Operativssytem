@@ -100,7 +100,8 @@ int32_t serialize_tlv(struct TLV_holder *src, unsigned char* dest,
         memcpy(&dest[tot_bytes], &src->tlv_arr[index].len, INT16_SIZE);
         tot_bytes += INT16_SIZE;
 
-        memcpy(&dest[tot_bytes], src->tlv_arr[index].data, src->tlv_arr[index].len);
+        memcpy(&dest[tot_bytes], src->tlv_arr[index].data, 
+                                                    src->tlv_arr[index].len);
         tot_bytes += src->tlv_arr[index].len;
         
  
@@ -123,10 +124,16 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
     pr_info("------> IN DESERIALIZE [module] <----------\n\n"); 
     pr_info("tot_bytes = %d\n", tot_bytes );
     
-     byte_counter = 0;
+    byte_counter = 0;
+
+    if(dest->tlv_arr[dest->nr_of_structs].len) {
+        pr_info("nothing to parse");
+        return -1;
+    }
 
     while(byte_counter < tot_bytes) {
-        pr_info("byte counter is %d, and tot bytes is %d \n", byte_counter, tot_bytes);
+        pr_info("byte counter is %d, and tot bytes is %d \n", 
+                                                    byte_counter, tot_bytes);
 
         pr_info("dest->nr_of_structs = %d\n", dest->nr_of_structs);       
         if(dest->nr_of_structs > MAX_OBJS - 1) 
@@ -136,7 +143,8 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
         byte_counter += INT8_SIZE;
         pr_info("byte counter is %d\n", byte_counter);
         
-        memcpy(&dest->tlv_arr[dest->nr_of_structs].len, &src[byte_counter], INT16_SIZE);
+        memcpy(&dest->tlv_arr[dest->nr_of_structs].len, &src[byte_counter], 
+                                                                    INT16_SIZE);
         byte_counter += INT16_SIZE;
         pr_info("byte counter is %d\n", byte_counter);
 

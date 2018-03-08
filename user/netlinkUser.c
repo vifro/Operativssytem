@@ -24,20 +24,21 @@ struct msghdr msg;
 /*NETLINK message pointers */
 
 //TODO Implement nlattr to send correct shit
-struct nlattr *na; 
 struct nlmsghdr *nl_hdr = NULL;
 
 /*Process pid*/
 pid_t PID;
 int seqNo = 1337;
 
+
 void set_src_addr(void);
 void set_dest_addr(void);
-int32_t conf_msg(int option, char* message, int key, unsigned char* buffer);
-void send_message(int payload_length,unsigned char* mess);
-
+int conf_msg(int option, char* message, int key, unsigned char* buffer);
+int send_message(int payload_length,unsigned char* mess);
 int recieve_message(void);
 int open_connection(void);
+int cr_tlv_msg(unsigned char* buffer);
+int recv_tvl_msg(unsigned char* buffer, int pload_len);
 
 
 int main(int argc, char* argv[]) {
@@ -46,30 +47,32 @@ int main(int argc, char* argv[]) {
     struct TLV_holder tlv_holder1, tlv_holder2;
     unsigned char buffer[MAX_PAYLOAD] = {0};
     int pload_len = 0;
-
-    /* Message out, build, serialize, print for debugging and free */
-    memset(&tlv_holder1, 0 , sizeof(tlv_holder1));    
-    tlv_add_instruction(&tlv_holder1, 1);
-    tlv_add_string(&tlv_holder1, "hello kernel, tlv mess here..");
-    print_tlv(&tlv_holder1);
-    serialize_tlv(&tlv_holder1, buffer, &pload_len);
-    free_tlv(&tlv_holder1);
+    int err = 0;
     
+    
+    /* Message out, build, serialize, print for debugging and free */
+    
+    pload_len = cr_tlv_msg(buffer);
+    if(pload_len < 0) {
+        printf("Error creating tlv");
+        return ERROR;    
+    }
+    printf("The pload_len is %d", pload_len);
     
     /* Message recieved, deserialize to holder, print value and free*/
-    memset(&tlv_holder2, 0 , sizeof(tlv_holder2));
-    deserialize_tlv(&tlv_holder2, buffer, pload_len);
-    print_tlv(&tlv_holder2);
-    free_tlv(&tlv_holder2);
+    //err = recv_tvl_msg(buffer, pload_len);
+    
     
     //TODO send in correct params for both src and dest
+    
     set_src_addr();
     set_dest_addr();
-
+    
     if(open_connection() != 0){
         fprintf(stderr, "Could not connect\n");
         return ERROR;
     }
+    
     send_message(pload_len, buffer);
     
     if(recieve_message() != 0){
@@ -77,10 +80,8 @@ int main(int argc, char* argv[]) {
     	return ERROR;
     }
     
-    
     close(sock_fd);
 	free(nl_hdr);
-
     
     return SUCCESS;
 }
@@ -107,14 +108,48 @@ void set_dest_addr(){
     dest_addr.nl_groups = 0;
 }
 
+int cr_tlv_msg(unsigned char* buffer){
+    
+    printf("\n\n------------------> cr_tlv_msg <--------------------- \n");
+    struct TLV_holder tlv_holder1;
+    int pload_len = -1;
+    
+    memset(&tlv_holder1, 0 , sizeof(tlv_holder1));    
+    
+    tlv_add_instruction(&tlv_holder1, 1);
+    tlv_add_string(&tlv_holder1, "hello kernel, tlv mess here..");
+    print_tlv(&tlv_holder1);
+    serialize_tlv(&tlv_holder1, buffer, &pload_len);
+    
+    free_tlv(&tlv_holder1);
+    
+    return pload_len;
+}
+
+
+int recv_tvl_msg(unsigned char* buffer, int pload_len) {
+
+    struct TLV_holder tlv_reciever;
+        
+    memset(&tlv_reciever, 0 , sizeof(tlv_reciever));
+    deserialize_tlv(&tlv_reciever, buffer, pload_len);
+    
+    print_tlv(&tlv_reciever);
+    
+    free_tlv(&tlv_reciever);
+    
+    return SUCCESS;
+}
+
 int32_t conf_msg(int option, char* message, int key, unsigned char* buffer) {
     
+
 	//TODO FIX inparameters, set upp correct messages and return serialized.
 	return tlv_success;
 }
 
-void send_message(int len, unsigned char *message){
-	
+int send_message(int len, unsigned char *message){
+    ssize_t size;
 	//unsigned char buffer[MAX_PAYLOAD];
     //struct iovec iov = {nl_hdr, nl_hdr->nlmsg_len};
     //struct msghdr msg =  { &dest_addr, sizeof(dest_addr), &iov, 1, NULL, 0, 0 };
@@ -143,9 +178,15 @@ void send_message(int len, unsigned char *message){
     
 	printf("copieddata to nl_hdrwith pid: %d\n", PID);
 	
-    sendmsg(sock_fd, &msg, 0);
-    printf("PID-%d sending with payload:\n%s\n", src_addr.nl_pid,(char*)NLMSG_DATA(nl_hdr));
-
+    size = sendmsg(sock_fd, &msg, 0);
+    if(size < 0 ) {
+        printf("recieved %zu from sendmsg", size);
+        return ERROR;
+    }
+    
+    printf("PID-%d sending with payload size:%zu\n", src_addr.nl_pid, size);
+    
+    return SUCCESS;
 
 }
 
@@ -166,8 +207,10 @@ int recieve_message(){
 	printf("waiting to recieve message from kernel\n");
     recvmsg(sock_fd, &msg, 0);
 	
+    /*Deserialize, print then free tlv holder */
     deserialize_tlv(&tlv_reciever, NLMSG_DATA(nl_hdr), nl_hdr->nlmsg_len);
     print_tlv(&tlv_reciever);
+    free_tlv(&tlv_reciever);
 
     if(nl_hdr->nlmsg_pid != 0){
         printf("msg from unknown source, it has: %d \n", nl_hdr->nlmsg_pid);
@@ -179,7 +222,7 @@ int recieve_message(){
     printf("Message recieved %s\n With len:%d\n", (char*)NLMSG_DATA(nl_hdr), nl_hdr->nlmsg_len);
 	
     close(sock_fd);
-
+    
     return SUCCESS;
 }
 

@@ -9,13 +9,12 @@
 DATATYPES parse_string = TLV_STRING;
 DATATYPES parse_int    = TLV_INTEGER;
 
-
 #ifndef INSTR_INDEX
 #define INSTR_INDEX 0
 #endif
 
 
-struct TLV_holder recieved, construct;
+struct TLV_holder recieved;
 
 enum {TYPE_READ, TYPE_WRITE, TYPE_INSTR = 255 }; 
 
@@ -23,11 +22,14 @@ int write_to_storage (void) {
     
     if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string){
         pr_info("[read_from_storage] - not a valid value");
+        free_tlv(&recieved);
         return tlv_failed;
     }
     
     pr_info("[write_to_storage] - data: %s", 
             (char*)recieved.tlv_arr[INSTR_INDEX + 1].data);
+    
+    free_tlv(&recieved);
     return tlv_success;
 }
 
@@ -36,10 +38,13 @@ int read_from_storage(void) {
     
     if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_int){
         pr_info("[read_from_storage] - not a key");
+        free_tlv(&recieved);
         return tlv_failed;
     }
     memcpy(&value_key, recieved.tlv_arr[INSTR_INDEX + 1].data, sizeof(int32_t));
     pr_info("[read_from_storage] - data %d ", value_key);
+    
+
     return tlv_success;
 }
 
@@ -91,7 +96,7 @@ int check_instr(int rec_pid, int seq)
 *   parse_message
 *
 */
-int parse_message(int seq, int rec_pid ,unsigned char* buffer, int buf_len) {
+int parse_tlv_message(int seq, int rec_pid ,unsigned char* buffer, int buf_len) {
     int err;
     
     memset(&recieved, 0 , sizeof(recieved));
@@ -111,8 +116,42 @@ int parse_message(int seq, int rec_pid ,unsigned char* buffer, int buf_len) {
 	free_tlv(&recieved);
 
     //return tlv_success;
-	return nl_send_msg(rec_pid, seq);
+	return nl_send_msg(rec_pid, seq, 1);
 }
 
+/**
+*
+*
+*
+*
+*/
+int create_tlv_message(int status, unsigned char* buffer) {
+    struct TLV_holder construct; 
+    int pload_length = 0;
+    int err = 0;
+    
+    memset(&construct, 0 , sizeof(construct));
+    
+    if(status == 0){
+        tlv_add_integer(&construct, 1);
+        err = serialize_tlv(&construct, buffer, &pload_length);
+        if(err != 0) {
+            free_tlv(&construct);
+            pr_err("falied to serialize message");            
+            return tlv_failed;
+        }
+            
+    } else {
+        tlv_add_integer(&construct, 1);
+        err = serialize_tlv(&construct, buffer, &pload_length);
+        if(err != 0) {
+            free_tlv(&construct);
+            pr_err("falied to serialize message");            
+            return tlv_failed;
+        }  
+    }
+    free_tlv(&construct);
+    return tlv_success;
+}
 
 
