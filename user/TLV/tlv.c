@@ -93,7 +93,7 @@ int32_t free_tlv(struct TLV_holder *tlvs)
 int32_t serialize_tlv(struct TLV_holder *src, unsigned char* dest, 
                         int *byte_counter)
 {
-    printf("------> IN SERIALIZE <----------\n\n");
+    printf("\n\n------> IN SERIALIZE <----------\n");
     //TODO check if src of dest is null
     int32_t tot_bytes  = 0;
     int index = 0;
@@ -125,7 +125,7 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
                             int tot_bytes)
 {
     //TODO Check if src and dest is null
-    printf("------> IN deSERIALIZE <----------\n\n"); 
+    printf("\n\n------> IN deSERIALIZE <----------\n"); 
     printf("tot_bytes = %d\n", tot_bytes );
     
     int byte_counter = 0;
@@ -169,7 +169,8 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
 int32_t print_tlv(struct TLV_holder *src) {
         
     int index = 0;    
-    printf("--------------> In print_tlv <----------------\n");    
+    printf("\n\n--------------> In print_tlv <----------------\n"); 
+       
     while (index < src->nr_of_structs) {
         printf("index is: %d\n", index);
         //printf("obj_nr: %d\n", index); 

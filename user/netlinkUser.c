@@ -44,16 +44,23 @@ int main(int argc, char* argv[]) {
     
     printf("Hello, World! This is a test of simple netlink implementation\n");
     struct TLV_holder tlv_holder1, tlv_holder2;
-    memset(&tlv_holder1, 0 , sizeof(tlv_holder1));
+    unsigned char buffer[MAX_PAYLOAD] = {0};
+    int pload_len = 0;
 
-    unsigned char buffer[MAX_PAYLOAD];
-    int pload_len;
+    /* Message out, build, serialize, print for debugging and free */
+    memset(&tlv_holder1, 0 , sizeof(tlv_holder1));    
     tlv_add_instruction(&tlv_holder1, 1);
     tlv_add_string(&tlv_holder1, "hello kernel, tlv mess here..");
-    serialize_tlv(&tlv_holder1, buffer, &pload_len);
     print_tlv(&tlv_holder1);
+    serialize_tlv(&tlv_holder1, buffer, &pload_len);
+    free_tlv(&tlv_holder1);
+    
+    
+    /* Message recieved, deserialize to holder, print value and free*/
+    memset(&tlv_holder2, 0 , sizeof(tlv_holder2));
     deserialize_tlv(&tlv_holder2, buffer, pload_len);
     print_tlv(&tlv_holder2);
+    free_tlv(&tlv_holder2);
     
     //TODO send in correct params for both src and dest
     set_src_addr();
@@ -70,6 +77,8 @@ int main(int argc, char* argv[]) {
     	return ERROR;
     }
     
+    
+    close(sock_fd);
 	free(nl_hdr);
 
     
