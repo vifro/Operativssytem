@@ -22,14 +22,12 @@ int write_to_storage (void) {
     
     if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string){
         pr_info("[read_from_storage] - not a valid value");
-        free_tlv(&recieved);
         return tlv_failed;
     }
     
     pr_info("[write_to_storage] - data: %s", 
             (char*)recieved.tlv_arr[INSTR_INDEX + 1].data);
-    
-    free_tlv(&recieved);
+ 
     return tlv_success;
 }
 
@@ -38,13 +36,11 @@ int read_from_storage(void) {
     
     if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_int){
         pr_info("[read_from_storage] - not a key");
-        free_tlv(&recieved);
         return tlv_failed;
     }
     memcpy(&value_key, recieved.tlv_arr[INSTR_INDEX + 1].data, sizeof(int32_t));
     pr_info("[read_from_storage] - data %d ", value_key);
     
-
     return tlv_success;
 }
 
@@ -138,7 +134,7 @@ int create_tlv_message(int status, unsigned char* buffer) {
         if(err != 0) {
             free_tlv(&construct);
             pr_err("falied to serialize message");            
-            return tlv_failed;
+            return pload_length;
         }
             
     } else {
@@ -147,11 +143,11 @@ int create_tlv_message(int status, unsigned char* buffer) {
         if(err != 0) {
             free_tlv(&construct);
             pr_err("falied to serialize message");            
-            return tlv_failed;
+            return pload_length;
         }  
     }
     free_tlv(&construct);
-    return tlv_success;
+    return pload_length;
 }
 
 

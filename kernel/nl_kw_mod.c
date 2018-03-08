@@ -45,7 +45,7 @@ int nl_send_msg(u32 rec_pid , int seq, int status) {
 	int err = 0;                        // err
     int pload_length = 0;               //length of tlv payload in bytes
     
-
+	
     if(rec_pid == 0) {
         pr_err("Dont send to kernel or recieve from kernel!");
         return -1;
@@ -60,15 +60,16 @@ int nl_send_msg(u32 rec_pid , int seq, int status) {
 	}
     
     /* create payload and recieve length */
+    memset(buffer, 0, sizeof(buffer));
     pload_length = create_tlv_message(status, buffer); 
     if(pload_length <= 0) {
         pr_err("No message to send");
         return -1;
     }    
-
+	
     /* Fill the header with data */
 	nl_hdr = (struct nlmsghdr*)skb->data;
-	nl_hdr->nlmsg_len = NLMSG_LENGTH(pload_length);
+	nl_hdr->nlmsg_len = NLMSG_LENGTH(MAX_PAYLOAD);
 	nl_hdr->nlmsg_pid = 0; 
 	nl_hdr->nlmsg_flags = 0;
 	
@@ -78,7 +79,7 @@ int nl_send_msg(u32 rec_pid , int seq, int status) {
 	NETLINK_CB(skb).dst_group = 0; /* Unicast */
 	NETLINK_CB(skb).portid = 0; /* from kernel */	
 	
-	memcpy(NLMSG_DATA(nl_hdr), buffer, NLMSG_LENGTH(pload_length));
+	memcpy(NLMSG_DATA(nl_hdr), buffer, pload_length);
 	
 	err =  nlmsg_unicast(nl_sock, skb, rec_pid);
 	if(err < 0) {
