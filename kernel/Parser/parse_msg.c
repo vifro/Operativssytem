@@ -102,13 +102,12 @@ int parse_tlv_message(int seq, int rec_pid ,unsigned char* buffer, int buf_len) 
         return tlv_failed;
     }
         pr_info("%d", TYPE_INSTR);
-    print_tlv(&recieved); // Just for checking attributes
+    //print_tlv(&recieved); // Just for checking attributes
         
     if(check_instr(rec_pid, seq) < 0) {
         return tlv_failed;
     } //Check which instruction
     
-	pr_info("Should call correctfunction in module.. \n");
 	free_tlv(&recieved);
 
     //return tlv_success;

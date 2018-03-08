@@ -85,15 +85,12 @@ int32_t serialize_tlv(struct TLV_holder *src, unsigned char* dest,
     int32_t tot_bytes  = 0;
     int index = 0;
     
-    pr_info("------> IN SERIALIZE <----------\n\n");
     if(src == NULL || dest == NULL){
         pr_err("[kernel] - Serialize got Null object");
         return tlv_failed;    
     }
     
-    pr_info("nr_of_structs is: %d\n", src->nr_of_structs);
     for(; index < src->nr_of_structs; index++) {
-        pr_info("index is: %d\n", index);
         dest[tot_bytes] = src->tlv_arr[index].type;
         tot_bytes += INT8_SIZE;
         
@@ -103,10 +100,7 @@ int32_t serialize_tlv(struct TLV_holder *src, unsigned char* dest,
         memcpy(&dest[tot_bytes], src->tlv_arr[index].data, 
                                                     src->tlv_arr[index].len);
         tot_bytes += src->tlv_arr[index].len;
-        
- 
     }
-    pr_info("total bytes is: %d\n",tot_bytes);
     *byte_counter = tot_bytes;
     
     return tlv_success;
@@ -120,10 +114,6 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
                             int tot_bytes)
 {
 
-//TODO Check if src and dest is null
-    pr_info("------> IN DESERIALIZE [module] <----------\n\n"); 
-    pr_info("tot_bytes = %d\n", tot_bytes );
-    
     byte_counter = 0;
 
     if(dest->tlv_arr[dest->nr_of_structs].len) {
@@ -131,22 +121,17 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
         return -1;
     }
 
-    while(byte_counter < tot_bytes) {
-        pr_info("byte counter is %d, and tot bytes is %d \n", 
-                                                    byte_counter, tot_bytes);
-
-        pr_info("dest->nr_of_structs = %d\n", dest->nr_of_structs);       
+    while(byte_counter < tot_bytes) {   
         if(dest->nr_of_structs > MAX_OBJS - 1) 
             return tlv_failed;        
         
         dest->tlv_arr[dest->nr_of_structs].type = src[byte_counter];
         byte_counter += INT8_SIZE;
-        pr_info("byte counter is %d\n", byte_counter);
+        
         
         memcpy(&dest->tlv_arr[dest->nr_of_structs].len, &src[byte_counter], 
                                                                     INT16_SIZE);
         byte_counter += INT16_SIZE;
-        pr_info("byte counter is %d\n", byte_counter);
 
         if(dest->tlv_arr[dest->nr_of_structs].len != 0) {
             dest->tlv_arr[dest->nr_of_structs].data = 
@@ -156,7 +141,6 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
                     dest->tlv_arr[dest->nr_of_structs].len);
         
             byte_counter += dest->tlv_arr[dest->nr_of_structs].len;
-            pr_info("byte counter is %d\n", byte_counter);
         } else {
             //TODO handle
         }
@@ -177,7 +161,6 @@ int32_t print_tlv(struct TLV_holder *src) {
     pr_info("--------------> In print_tlv <----------------\n");   
      
     while (index < src->nr_of_structs) {
-        pr_info("index is: %d\n", index);
         
         if(src->tlv_arr[index].type == type_int || 
            src->tlv_arr[index].type == type_instr) {

@@ -38,7 +38,7 @@ int send_message(int payload_length,unsigned char* mess);
 int recieve_message(void);
 int open_connection(void);
 int cr_tlv_msg(unsigned char* buffer);
-int recv_tvl_msg(unsigned char* buffer, int pload_len);
+int recv_tlv_msg(unsigned char* buffer, int pload_len);
 
 
 int main(int argc, char* argv[]) {
@@ -50,23 +50,6 @@ int main(int argc, char* argv[]) {
     int err = 0;
     int i = 0;
     
-    
-    
-    /* Message out, build, serialize, print for debugging and free */
-    
-    pload_len = cr_tlv_msg(buffer);
-    if(pload_len < 0) {
-        printf("Error creating tlv");
-        return ERROR;    
-    }
-    printf("The pload_len is %d", pload_len);
-    
-    /* Message recieved, deserialize to holder, print value and free*/
-    //err = recv_tvl_msg(buffer, pload_len);
-    
-    
-    //TODO send in correct params for both src and dest
-    
     set_src_addr();
     set_dest_addr();
     
@@ -77,12 +60,22 @@ int main(int argc, char* argv[]) {
     
     while(i < 100){
     	sleep(1); // seconds
+        /* Message out, build, serialize, print for debugging and free */
+        pload_len = cr_tlv_msg(buffer);
+        
+        if(pload_len < 0) {
+            printf("Error creating tlv");
+            return ERROR;    
+        }        
+        //TODO take care of return value;
 		send_message(pload_len, buffer);
 		
 		if(recieve_message() != 0){
 			printf("an error occured while recieving message\n");
 			return ERROR;
 		}
+        memset(buffer, 0, sizeof(buffer));
+        
 		i++;
     }
     
@@ -116,7 +109,6 @@ void set_dest_addr(){
 
 int cr_tlv_msg(unsigned char* buffer){
     
-    printf("\n\n------------------> cr_tlv_msg <--------------------- \n");
     struct TLV_holder tlv_holder1;
     int pload_len = -1;
     
@@ -124,7 +116,6 @@ int cr_tlv_msg(unsigned char* buffer){
     
     tlv_add_instruction(&tlv_holder1, 1);
     tlv_add_string(&tlv_holder1, "hello kernel, tlv mess here..");
-    print_tlv(&tlv_holder1);
     serialize_tlv(&tlv_holder1, buffer, &pload_len);
     
     free_tlv(&tlv_holder1);
@@ -133,14 +124,14 @@ int cr_tlv_msg(unsigned char* buffer){
 }
 
 
-int recv_tvl_msg(unsigned char* buffer, int pload_len) {
+int recv_tlv_msg(unsigned char* buffer, int pload_len) {
 
     struct TLV_holder tlv_reciever;
         
     memset(&tlv_reciever, 0 , sizeof(tlv_reciever));
     deserialize_tlv(&tlv_reciever, buffer, pload_len);
     
-    print_tlv(&tlv_reciever);
+    //print_tlv(&tlv_reciever);
     
     free_tlv(&tlv_reciever);
     
@@ -177,20 +168,16 @@ int send_message(int len, unsigned char *message){
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1; /* number of iov structs. */ 
 
-	printf("copying data to nl_hdr with pid: %d\n", PID);
     //TODO Use tlv to prepare a message And fix to correct size, as buffer.
     //strcpy(NLMSG_DATA(nl_hdr), message);
     memcpy(NLMSG_DATA(nl_hdr), message, len);
-    
-	printf("copieddata to nl_hdrwith pid: %d\n", PID);
 	
     size = sendmsg(sock_fd, &msg, 0);
-    if(size < 0 ) {
+    if(size < (ssize_t)0 ) {
         printf("recieved %zu from sendmsg", size);
         return ERROR;
     }
-    
-    printf("PID-%d sending with payload size:%zu\n", src_addr.nl_pid, size);
+    printf("\nPID-%d sending with sequence number:%d\n", src_addr.nl_pid, seqNo);
     
     return SUCCESS;
 
@@ -198,35 +185,17 @@ int send_message(int len, unsigned char *message){
 
 int recieve_message(){
     
-    //memset(&msg, 0 , sizeof(struct msghdr));
-	struct TLV_holder tlv_reciever;
-    memset(&tlv_reciever, 0 , sizeof(tlv_reciever));
 	memset(nl_hdr, 0 , sizeof(struct nlmsghdr));
-	/*
-    iov.iov_base = (void *)nl_hdr;
-    iov.iov_len  = nl_hdr->nlmsg_len;
-    msg.msg_name = (void*) &src_addr;
-    msg.msg_namelen = sizeof(src_addr);
-	*/
-	/*recvmsg blocks api until message is recieved.*/
+	
 	printf("waiting to recieve message from kernel\n");
     recvmsg(sock_fd, &msg, 0);
 	
     if(nl_hdr->nlmsg_pid != 0){
         printf("msg from unknown source, it has: %d \n", nl_hdr->nlmsg_pid);
     }
-
-    //TODO Parse with deserialize to get the data. Create a parse_incoming.
-	/*Deserialize, print then free tlv holder */
-    //deserialize_tlv(&tlv_reciever, NLMSG_DATA(nl_hdr), nl_hdr->nlmsg_len);
-    deserialize_tlv(&tlv_reciever, NLMSG_DATA(nl_hdr), 7);
-    print_tlv(&tlv_reciever);
-    free_tlv(&tlv_reciever);
-    
-    printf("Message recieved %s\n With len:%d\n", (char*)NLMSG_DATA(nl_hdr), nl_hdr->nlmsg_len );
-	
-    close(sock_fd);
-    
+    printf("rec mess with seqnr: %d\n\n", seqNo);
+    recv_tlv_msg(NLMSG_DATA(nl_hdr), 7);
+        
     return SUCCESS;
 }
 

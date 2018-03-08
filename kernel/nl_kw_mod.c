@@ -37,7 +37,7 @@ struct sock *nl_sock = NULL;
 * Send back to user, given sequence number and the pid of process to be reached.
 *
 */
-int nl_send_msg(u32 rec_pid , int seq, int status) {
+int nl_send_msg(u32 rec_pid , int seqNr, int status) {
 
 	struct sk_buff *skb;
 	struct nlmsghdr *nl_hdr;
@@ -72,9 +72,10 @@ int nl_send_msg(u32 rec_pid , int seq, int status) {
 	nl_hdr->nlmsg_len = NLMSG_LENGTH(pload_length);
 	nl_hdr->nlmsg_pid = 0; 
 	nl_hdr->nlmsg_flags = 0;
+    nl_hdr->nlmsg_seq = seqNr;
 	
 	/* Add a netlink msg to an sk_bff */
-	nl_hdr = nlmsg_put(skb, 0, seq, NLMSG_DONE, nl_hdr->nlmsg_len, 0);
+	nl_hdr = nlmsg_put(skb, 0, seqNr, NLMSG_DONE, nl_hdr->nlmsg_len, 0);
 	
 	NETLINK_CB(skb).dst_group = 0; /* Unicast */
 	NETLINK_CB(skb).portid = 0; /* from kernel */	
@@ -87,7 +88,7 @@ int nl_send_msg(u32 rec_pid , int seq, int status) {
 		return -1;
 	}
 
-	pr_info("Sent message to pid: %d with len: %d \n", rec_pid, pload_length);
+	pr_info("Sent message to pid: %d with seq: %d\n", rec_pid, seqNr);
 	return 0;
 }
 
@@ -103,18 +104,12 @@ static void nl_recv_callback(struct sk_buff *skb){
     int seq;
     int buf_len;
     int err;
-    
     unsigned char buffer[MAX_PAYLOAD]; // FIX the size
-
-    pr_info("Entering %s \n", __FUNCTION__);
-    
+ 
     nl_hdr=(struct nlmsghdr*)skb->data;
     pid = nl_hdr->nlmsg_pid;
 	seq = nl_hdr->nlmsg_seq;
-	
-	pr_info("Netlink recieved message with payload: %s \n",
-            (unsigned char*)NLMSG_DATA(nl_hdr));
-	   
+
     /* Extract the buffer from payload */
     buf_len = NLMSG_PAYLOAD(nl_hdr, 0);
     
@@ -126,8 +121,6 @@ static void nl_recv_callback(struct sk_buff *skb){
 	if(err < 0)
 		pr_info("nl_send_msg failed");
 
-    pr_info("message sent over socket");
-	
 }
 
 
