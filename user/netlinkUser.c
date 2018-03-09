@@ -1,3 +1,12 @@
+/*
+ *
+ *
+ * Author: Victor From <c13vfm@cs.umu.se>
+ * 
+ *  
+ *
+ */
+
 #include <stdio.h>
 #include <sys/socket.h>
 #include "TLV/tlv.h"
@@ -7,7 +16,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <linux/genetlink.h>
-
 
 
 #define SUCCESS			0
@@ -23,7 +31,6 @@ struct iovec iov;
 struct msghdr msg;
 /*NETLINK message pointers */
 
-//TODO Implement nlattr to send correct shit
 struct nlmsghdr *nl_hdr = NULL;
 
 /*Process pid*/
@@ -184,7 +191,6 @@ int send_message(int len, unsigned char *message){
 }
 
 int recieve_message(){
-    
 	memset(nl_hdr, 0 , sizeof(struct nlmsghdr));
 	
 	printf("waiting to recieve message from kernel\n");
@@ -211,7 +217,6 @@ int open_connection(){
         fprintf(stderr, "Error binding socket\n");
         return ERROR;
     }
-
     printf("successfully binding socket!\n");
 
     return SUCCESS;

@@ -1,3 +1,13 @@
+
+/*
+ * Create tlv message, serialize and deserialize as unsigned char *buffer
+ *
+ * Author: Victor From <c13vfm@cs.umu.se>
+ * 
+ *
+ *
+ */
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include "tlv.h"

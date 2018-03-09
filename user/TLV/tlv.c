@@ -1,7 +1,11 @@
 /*
-* File for serializing and deserializing a tlv obj
-*
-*/
+ * Create tlv message, serialize and deserialize as unsigned char *buffer
+ *
+ * Author: Victor From <c13vfm@cs.umu.se>
+ * 
+ *
+ *
+ */
 
 #include "tlv.h"
 #include <stdio.h>

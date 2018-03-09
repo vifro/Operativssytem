@@ -1,3 +1,14 @@
+
+/*
+ * Module for handling netlink requests on specific BUS.
+ *
+ * Author: Victor From <c13vfm@cs.umu.se>
+ * 
+ *
+ *
+ */
+
+
 #include "myheader.h"
 #include "TLV/tlv.h"
 #include <linux/module.h>
