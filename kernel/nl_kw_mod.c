@@ -11,6 +11,8 @@
 
 #include "myheader.h"
 #include "TLV/tlv.h"
+#include "KVStore/keyvalue.h"
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <net/sock.h>
@@ -62,35 +64,35 @@ int nl_send_msg(u32 rec_pid , int seqNr, int status) {
        
 	/* Allocate a new netlink message */
 	skb = nlmsg_new(NLMSG_SPACE(MAX_PAYLOAD), GFP_KERNEL);
-	
+
 	if(!skb){
 		pr_err("vailed to allocate skb");
 		return -1;
 	}
-    
+
     /* create payload and recieve length */
     memset(buffer, 0, sizeof(buffer));
-    pload_length = create_tlv_message(status, buffer); 
+    pload_length = create_tlv_message(status, buffer);
     if(pload_length <= 0) {
         pr_err("No message to send");
         return -1;
-    }    
-	
+    }
+
     /* Fill the header with data */
 	nl_hdr = (struct nlmsghdr*)skb->data;
 	nl_hdr->nlmsg_len = NLMSG_LENGTH(pload_length);
-	nl_hdr->nlmsg_pid = 0; 
+	nl_hdr->nlmsg_pid = 0;
 	nl_hdr->nlmsg_flags = 0;
-    nl_hdr->nlmsg_seq = seqNr;
-	
+	nl_hdr->nlmsg_seq = seqNr;
+
 	/* Add a netlink msg to an sk_bff */
 	nl_hdr = nlmsg_put(skb, 0, seqNr, NLMSG_DONE, nl_hdr->nlmsg_len, 0);
-	
+
 	NETLINK_CB(skb).dst_group = 0; /* Unicast */
-	NETLINK_CB(skb).portid = 0; /* from kernel */	
-	
+	NETLINK_CB(skb).portid = 0; /* from kernel */
+
 	memcpy(NLMSG_DATA(nl_hdr), buffer, pload_length);
-	
+
 	err =  nlmsg_unicast(nl_sock, skb, rec_pid);
 	if(err < 0) {
 		pr_err("Failed to send data\n");
@@ -106,48 +108,47 @@ int nl_send_msg(u32 rec_pid , int seqNr, int status) {
 * Callback function that 
 *
 */
-static void nl_recv_callback(struct sk_buff *skb){
-
+static void nl_recv_callback(struct sk_buff *skb) {
     struct nlmsghdr *nl_hdr;
     u32 pid;
     int seq;
     int buf_len;
     int err;
     unsigned char buffer[MAX_PAYLOAD]; // FIX the size
+
  
  	/* Receive nlmsghdr to get correct data */
     nl_hdr = nlmsg_hdr(skb); 
     
+
+    nl_hdr=(struct nlmsghdr*)skb->data;
     pid = nl_hdr->nlmsg_pid;
-	seq = nl_hdr->nlmsg_seq;
+    seq = nl_hdr->nlmsg_seq;
 
     /* Extract the buffer from payload */
     buf_len = NLMSG_PAYLOAD(nl_hdr, 0);
-    
+
     memset(buffer, 0 , sizeof(buffer));
     memcpy(buffer, NLMSG_DATA(nl_hdr), buf_len);
-    
-    /* Parse the payload */
-	err = parse_tlv_message(seq, pid, buffer, buf_len );  
-	if(err < 0)
-		pr_info("nl_send_msg failed");
 
+    /* Parse the payload */
+    err = parse_tlv_message(seq, pid, buffer, buf_len );
+    if(err < 0)
+        pr_info("nl_send_msg failed");
 }
 
 
-/** 
+/**
 * module init:
 *			Set callback function to the one declared in this file.
-*			Create a connection  
+*			Create a connection
 */
-static int __init nlmodule_init(void) {	
-	
-
+static int __init nlmodule_init(void) {
 	struct netlink_kernel_cfg cfg = {
 		.groups = 1,
 		.input = nl_recv_callback,
 	};
-	
+
 	printk("Entering: %s\n", __FUNCTION__);
 	nl_sock = netlink_kernel_create(&init_net, NETLINK_USER, &cfg);
 
@@ -155,6 +156,13 @@ static int __init nlmodule_init(void) {
 		pr_err("Error creating netlink socket");
 		return -10;
 	}
+
+	if(!kvstore_init())
+	{
+		pr_err("Failed to initialize KVS.");
+		return -10;
+	}
+
 	pr_info("Successfully created netlink socket.");
 	return 0;
 }
@@ -164,8 +172,10 @@ static int __init nlmodule_init(void) {
 * 			Release socket.
 *
 */
-static void __exit nlmodule_exit(void) {	
+static void __exit nlmodule_exit(void) {
 	netlink_kernel_release(nl_sock);
+	kvstore_exit();
+
 	pr_info("exiting the nl module");
 }
 
