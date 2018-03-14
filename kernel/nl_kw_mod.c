@@ -42,8 +42,6 @@
 unsigned char *ptr;
 struct sock *nl_sock = NULL;
 
-
-
 /*
 * Send back to user, given sequence number and the pid of process to be reached.
 *
@@ -117,7 +115,9 @@ static void nl_recv_callback(struct sk_buff *skb){
     int err;
     unsigned char buffer[MAX_PAYLOAD]; // FIX the size
  
-    nl_hdr=(struct nlmsghdr*)skb->data;
+ 	/* Receive nlmsghdr to get correct data */
+    nl_hdr = nlmsg_hdr(skb); 
+    
     pid = nl_hdr->nlmsg_pid;
 	seq = nl_hdr->nlmsg_seq;
 

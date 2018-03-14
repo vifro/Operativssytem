@@ -2,7 +2,7 @@
 #include <linux/module.h>
 #include "../myheader.h"
 #include "../TLV/tlv.h"
-#include<linux/slab.h>
+#include <linux/slab.h>
 #include <asm/types.h>
 #include <linux/string.h>
 
@@ -18,32 +18,51 @@ struct TLV_holder recieved;
 
 enum {TYPE_READ, TYPE_WRITE, TYPE_INSTR = 255 }; 
 
+/*
+ *
+ *
+ */
 int write_to_storage (void) {
+    int value_key = -1;
     
     if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string){
         pr_info("[read_from_storage] - not a valid value");
         return tlv_failed;
     }
     
-    pr_info("[write_to_storage] - data: %s", 
+    pr_info("[write_to_storage] - dataKey: %s", 
             (char*)recieved.tlv_arr[INSTR_INDEX + 1].data);
- 
+    
+    memcpy(&value_key, recieved.tlv_arr[INSTR_INDEX + 2].data, sizeof(int32_t));
+    pr_info("[write_to_storage] - data: %d", value_key);
+   	
+ 	
     return tlv_success;
 }
 
 int read_from_storage(void) {
-    int value_key;
+    int value_key = -1;
     
-    if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_int){
+    if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string){
         pr_info("[read_from_storage] - not a key");
         return tlv_failed;
     }
-    memcpy(&value_key, recieved.tlv_arr[INSTR_INDEX + 1].data, sizeof(int32_t));
+    
+    //memcpy(&value_key, recieved.tlv_arr[INSTR_INDEX + 1].data, sizeof(int32_t));
     pr_info("[read_from_storage] - data %d ", value_key);
     
+    //TODO Return the value from key-value storage
     return tlv_success;
 }
 
+/*
+* 
+* Check all instructions in a funcction. A message contains 3, instruction, key, value
+*
+*
+*
+*
+*/
 
 /*
 * 
@@ -52,7 +71,7 @@ int read_from_storage(void) {
 int check_instr(int rec_pid, int seq)
 {
     int incoming_instr;
-    
+    pr_info("nr: %d - maxObj %d", recieved.nr_of_structs, MAX_OBJS);
     if(recieved.nr_of_structs != MAX_OBJS){
         pr_err("[check_instr] - Not correct number of objs");
         return tlv_failed;

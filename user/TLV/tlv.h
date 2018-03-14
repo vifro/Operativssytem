@@ -10,10 +10,12 @@
 *   1 = int || 2 = char*
 *
 *	type---len---value
-*	First obj  - 1/4/WRITE_INSTR  
+*	First obj  - INSTRUCTION/4/WRITE_INSTR  
 *
-*	Second obj - 2/sizeof(char*)/"Name Namesson" 
+*	Second obj - TLV_STRING/sizeof(char*)/"Name Namesson" 
 *   
+*   Third obj - TLV_INTEGER/sizeof(int)/199009090909
+*
 */		
 
 
@@ -31,7 +33,7 @@
 #endif
 
 #ifndef MAX_OBJS    
-#define MAX_OBJS    2
+#define MAX_OBJS    3
 #endif
 
 

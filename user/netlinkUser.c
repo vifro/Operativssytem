@@ -22,6 +22,8 @@
 #define ERROR			-1
 #define MAX_PAYLOAD     4096
 #define NETLINK_USER    31
+#define READ_INSTR		0
+#define WRITE_INSTR 	1
 
 
 /* Variables for handling scket communication*/
@@ -44,7 +46,7 @@ int conf_msg(int option, char* message, int key, unsigned char* buffer);
 int send_message(int payload_length,unsigned char* mess);
 int recieve_message(void);
 int open_connection(void);
-int cr_tlv_msg(unsigned char* buffer);
+int cr_tlv_msg(unsigned char* buffer, char* string, int number);
 int recv_tlv_msg(unsigned char* buffer, int pload_len);
 
 
@@ -67,15 +69,19 @@ int main(int argc, char* argv[]) {
     
     while(i < 10){
     	sleep(1); // seconds
+    	
         /* Message out, build, serialize, print for debugging and free */
-        pload_len = cr_tlv_msg(buffer);
+        pload_len = cr_tlv_msg(buffer, "Name Namesson", 19900909);
         
         if(pload_len < 0) {
             printf("Error creating tlv");
             return ERROR;    
-        }        
-        //TODO take care of return value;
-		send_message(pload_len, buffer);
+        }
+                
+        
+		if(send_message(pload_len, buffer) != 0){
+				
+		}
 		
 		if(recieve_message() != 0){
 			printf("an error occured while recieving message\n");
@@ -87,8 +93,7 @@ int main(int argc, char* argv[]) {
     }
     
     close(sock_fd);
-	
-    
+	 
     return SUCCESS;
 }
 
@@ -102,8 +107,6 @@ void set_src_addr(){
     */
     src_addr.nl_pid = getpid();
 
-    //src_addr.nl_groups = 0-32 , default is 0, each family has 23 grops.
-    //src_addr.nl_pad = 0; , used for zeroing
 
 }
 
@@ -114,15 +117,16 @@ void set_dest_addr(){
     dest_addr.nl_groups = 0;
 }
 
-int cr_tlv_msg(unsigned char* buffer){
+int cr_tlv_msg(unsigned char* buffer, char* string, int number){
     
     struct TLV_holder tlv_holder1;
     int pload_len = -1;
     
     memset(&tlv_holder1, 0 , sizeof(tlv_holder1));    
     
-    tlv_add_instruction(&tlv_holder1, 1);
-    tlv_add_string(&tlv_holder1, "hello kernel, tlv mess here..");
+    tlv_add_instruction(&tlv_holder1, WRITE_INSTR);
+    tlv_add_string(&tlv_holder1, string);
+    tlv_add_integer(&tlv_holder1, number);
     serialize_tlv(&tlv_holder1, buffer, &pload_len);
     
     free_tlv(&tlv_holder1);
@@ -160,7 +164,7 @@ int send_message(int len, unsigned char *message){
 	PID = getpid();
 	
 	
-	//TODO try to fix sizes of msg and setup depending on created tlv buffer.
+	
     nl_hdr = (struct nlmsghdr*)malloc(NLMSG_SPACE(MAX_PAYLOAD));
     memset(nl_hdr, 0 , sizeof(struct nlmsghdr));
     nl_hdr->nlmsg_len = NLMSG_LENGTH(len); // length of payload without NLMSG_ALIGN

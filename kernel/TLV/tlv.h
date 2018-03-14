@@ -45,7 +45,7 @@
 #endif
 
 #ifndef MAX_OBJS    
-#define MAX_OBJS    2
+#define MAX_OBJS    3
 #endif
 
 

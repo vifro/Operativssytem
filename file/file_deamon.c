@@ -24,15 +24,29 @@
 #include <signal.h>     //  Signals
 
 #ifndef FILENAME_D
-#define FILENAME_D "daemonlog" // Name for syslog file
+#define FILENAME_D "kw_data.txt" //  Filename for storing key word data
 #endif
 
+#ifndef SYSLOG_FILE
+#define SYSLOG_FILE "daemonlog" // Name for syslog file
+#endif
   
+
+/*   
+ * This function reports messages to log for daemon, 
+ * Usefull for information and debugging as user. 
+ */
+void log_message(char *filename,  const char *message)
+{
+    openlog(filename, LOG_PID|LOG_CONS, LOG_USER);
+    syslog(LOG_INFO, "%s", message);
+    closelog();
+}
+
 /*
  * Handling system signals
  */
-void signal_handler(sig)
-{
+void signal_handler(int sig){
     switch(sig) {
         case SIGHUP:
             log_message(FILENAME_D, "Signal - hangup");
@@ -44,44 +58,41 @@ void signal_handler(sig)
     }
 }
 
-/*   
- * This function reports messages to log for daemon, 
- * Usefull for information and debugging as user. 
- */
-void log_message(char *filename,  char* message)
-{
-    openlog(filename, LOG_PID|LOG_CONS, LOG_USER);
-    syslog(LOG_INFO, "%s", message);
-    closelog();
+void write_to_file(char message[]){
+	
+	FILE *fp;
+	int err = 0;
+	char temp[6] = "hello";
+	
+	strcpy(temp, message);
+	
+
+	fp = fopen(FILENAME_D, "wb");
+	if(fp < 0){
+		log_message(SYSLOG_FILE, "Could not open file");
+		exit(EXIT_FAILURE);
+	}
+	log_message(SYSLOG_FILE, "Before Write");
+	err = fwrite(temp, sizeof(char), sizeof(temp) - 1, fp);
+	if(err != sizeof(temp)){
+		log_message(SYSLOG_FILE, "An error occured while writing to file");
+		exit(EXIT_FAILURE);
+	}
+	log_message(SYSLOG_FILE, "After write");
+	if(fclose(fp) != 0) {
+		log_message(SYSLOG_FILE, "An error occured while closing the file");
+		exit(EXIT_FAILURE);
+	}
 }
 
 int i = 0; //Counter for test, needs to be removed
 
 pid_t pid, sid; //pid and session id
 
-int main(void) {
-    /*take a name for syslog or give it a default value*/
-    
-    create_daemon();
-    
-    /* Run task*/
-    while(1) {
-        
-        if(i > 100){
-            log_message(FILENAME_D, "Daemon exiting from within");
-            exit(EXIT_SUCCESS);
-        }
-        
-        log_message(FILENAME_D, "this message comes from daemon");
-        sleep(1);
-        i++;
-    }
-    
-    
-    log_message(FILENAME_D,"Daemon exiting from within, wtf");
-    exit(EXIT_FAILURE);
-}
-
+/*
+ * Creates a daemon
+ *
+ */
 void create_daemon(){
 
     /* Fork process to create our to be daemon */
@@ -103,13 +114,13 @@ void create_daemon(){
     /* Create a unique session id. */
     sid = setsid();
     if(sid < 0) {
-        log_message(FILENAME_D, "Error creating a unique session id");
+        log_message(SYSLOG_FILE, "Error creating a unique session id");
         exit(EXIT_FAILURE);
     }
     
     /* Change the working directory*/
     if(chdir("/") < 0) {
-        log_message(FILENAME_D, "Something went wrong changing directory");
+        log_message(SYSLOG_FILE, "Something went wrong changing directory");
         exit(EXIT_FAILURE);
     }
     
@@ -132,7 +143,33 @@ void create_daemon(){
     signal(SIGHUP, signal_handler);
     signal(SIGTERM, signal_handler);
     
-    log_message(FILENAME_D, "Setup - SUCCESS");    
+    log_message(SYSLOG_FILE, "Setup - SUCCESS");    
 }
+
+int main(void){
+    /*take a name for syslog or give it a default value*/
+    
+    create_daemon();
+    
+    /* Run task*/
+    while(1) {
+        
+        if(i > 10){
+            log_message(SYSLOG_FILE, "Daemon exiting from within");
+            exit(EXIT_SUCCESS);
+        }
+        
+        log_message(SYSLOG_FILE, "This message comes from daemon");
+       	write_to_file("Daemon speaking");
+        sleep(1);
+        i++;
+    }
+    
+    
+    log_message(SYSLOG_FILE,"Daemon exiting from within, wtf");
+    exit(EXIT_FAILURE);
+}
+
+
 
 
