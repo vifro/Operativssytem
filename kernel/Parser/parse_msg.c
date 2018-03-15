@@ -43,7 +43,6 @@ int write_to_storage (void) {
     memcpy(&value_key, recieved.tlv_arr[INSTR_INDEX + 2].data, sizeof(int32_t));
     pr_info("[write_to_storage] - data: %d", value_key);
    	
- 	
     return tlv_success;
 }
 
@@ -74,35 +73,9 @@ int read_from_storage(void) {
     return tlv_success;
 }
 
-int read_from_storage() {
-    int value_key;
-
-    if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_int){
-        pr_info("[read_from_storage] - not a key");
-        return tlv_failed;
-    }
-
-    // TODO add call to kvstore_get() somewhere around here
-
-    memcpy(&value_key, recieved.tlv_arr[INSTR_INDEX + 1].data, sizeof(int32_t));
-    pr_info("[read_from_storage] - data %d ", value_key);
-
-    return tlv_success;
-}
-
 /*
-* 
-* Check all instructions in a funcction. A message contains 3, instruction, key, value
-*
-*
-*
-*
-*/
-
-/*
-* 
-*
-*/
+ *
+ */
 int check_instr(int rec_pid, int seq)
 {
     int incoming_instr;
@@ -168,6 +141,7 @@ int parse_tlv_message(int seq, int rec_pid ,unsigned char* buffer, int buf_len) 
     //print_tlv(&recieved); // Just for checking attributes
 
     if(check_instr(rec_pid, seq) < 0) {
+    	//TODO check instructions
         return tlv_failed;
     } //Check which instruction
 

@@ -122,13 +122,13 @@ int cr_tlv_msg(unsigned char* buffer, char* string, int number){
     struct TLV_holder tlv_holder1;
     int pload_len = -1;
     
-    memset(&tlv_holder1, 0 , sizeof(tlv_holder1));    
+    memset(&tlv_holder1, 0 , sizeof(tlv_holder1));
     
     tlv_add_instruction(&tlv_holder1, WRITE_INSTR);
     tlv_add_string(&tlv_holder1, string);
     tlv_add_integer(&tlv_holder1, number);
-    serialize_tlv(&tlv_holder1, buffer, &pload_len);
     
+    serialize_tlv(&tlv_holder1, buffer, &pload_len);
     free_tlv(&tlv_holder1);
     
     return pload_len;

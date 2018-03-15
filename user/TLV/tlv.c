@@ -44,13 +44,10 @@ int32_t tlv_add_string(struct TLV_holder* holders, const char* string)
 int32_t add_raw_tlv(struct TLV_holder* holders, const unsigned char type, 
 					const int16_t len, const void *data)
 {
-	if(holders->nr_of_structs > 1 || data == NULL || holders == NULL) 
+	if(holders->nr_of_structs > 2 || data == NULL || holders == NULL) 
         return tlv_failed;
     
-    int index = holders->nr_of_structs++; 
-    
-    if(index  > 1) 
-        return tlv_failed;
+    int index = holders->nr_of_structs++; // index in array is one lower then nr 
 
     holders->tlv_arr[index].type = type;
     holders->tlv_arr[index].len = len;
