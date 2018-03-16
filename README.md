@@ -12,4 +12,4 @@ How to test this simple implementation
 9. Check the in /file/temp to see if the values stored is saved to file. 
 
 After run:
-Remove with module and kill the daemon by name
+Remove module and kill the daemon by name. 
