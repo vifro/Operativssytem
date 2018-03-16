@@ -9,7 +9,7 @@
  *  
  *  Writing to file:  http://www.enderunix.org/docs/eng/daemon.php.
  *
- *   
+ *	IMPORTANT, RUN AS ROOT   
  */
  
 #include <stdlib.h>     //  exit , EXIT_FAILURE AND EXIT_SUCCESS MACROS
@@ -22,15 +22,35 @@
 #include <sys/types.h>  //  off_t and pid_t
 #include <sys/stat.h>   //  File type and file mode
 #include <signal.h>     //  Signals
+#include <poll.h>		//  Poll
+
+/*For working in both windows and unix */
+#ifdef WINDOWS
+#include <direct.h>
+#define getDir _getcwd
+#else
+#define getDir getcwd
+#endif
 
 #ifndef FILENAME_D
-#define FILENAME_D "kw_data.txt" //  Filename for storing key word data
+#define FILENAME_D "/temp/kw_data.txt" //  Filename for storing key word data
 #endif
 
 #ifndef SYSLOG_FILE
 #define SYSLOG_FILE "daemonlog" // Name for syslog file
 #endif
   
+#ifndef MAX_FILELEN // Name for syslog file
+#define MAX_FILELEN 255
+#endif
+
+int i = 0; //Counter for test, needs to be removed
+
+pid_t pid, sid; //pid and session id
+
+struct pollfd fds;
+FILE *fp;
+char path[MAX_FILELEN];
 
 /*   
  * This function reports messages to log for daemon, 
@@ -53,6 +73,8 @@ void signal_handler(int sig){
             break;
         case SIGTERM:
             log_message(FILENAME_D, "Signal - Terminate"),
+            fclose(fp);
+            close(fds.fd);
             exit(EXIT_SUCCESS);
             break;
     }
@@ -60,34 +82,32 @@ void signal_handler(int sig){
 
 void write_to_file(char message[]){
 	
-	FILE *fp;
-	int err = 0;
-	char temp[6] = "hello";
+	FILE *temp_fp;
+	int err;
+		
 	
-	strcpy(temp, message);
+	temp_fp = fopen(path, "a"); //open in append mode, not existing == create
 	
-
-	fp = fopen(FILENAME_D, "wb");
-	if(fp < 0){
+	if(fp == NULL){
 		log_message(SYSLOG_FILE, "Could not open file");
 		exit(EXIT_FAILURE);
 	}
+	
 	log_message(SYSLOG_FILE, "Before Write");
-	err = fwrite(temp, sizeof(char), sizeof(temp) - 1, fp);
-	if(err != sizeof(temp)){
+	err = fprintf(temp_fp, "%s %s %s %d","key:", message, " - value", 2012);
+	
+	if(err < 0){
 		log_message(SYSLOG_FILE, "An error occured while writing to file");
 		exit(EXIT_FAILURE);
+	
 	}
+	
 	log_message(SYSLOG_FILE, "After write");
-	if(fclose(fp) != 0) {
+	if(fclose(temp_fp) != 0) {
 		log_message(SYSLOG_FILE, "An error occured while closing the file");
 		exit(EXIT_FAILURE);
 	}
 }
-
-int i = 0; //Counter for test, needs to be removed
-
-pid_t pid, sid; //pid and session id
 
 /*
  * Creates a daemon
@@ -118,6 +138,14 @@ void create_daemon(){
         exit(EXIT_FAILURE);
     }
     
+    /* Get directory started from*/
+    if (getcwd(path, sizeof(path)) == NULL) {
+   		log_message(SYSLOG_FILE, "Could`nt get current directory");
+   		exit(EXIT_FAILURE);
+    }
+    strcat(path, FILENAME_D);
+    log_message(SYSLOG_FILE, path);
+    
     /* Change the working directory*/
     if(chdir("/") < 0) {
         log_message(SYSLOG_FILE, "Something went wrong changing directory");
@@ -129,8 +157,7 @@ void create_daemon(){
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
     /*
-    for (fd = 0; fd < _NFILE; fd++)
-    close(fd);  /* close all file descriptors */
+    
     
     /* CHECK MUTUAL EXCLUTION, MAYBE BY OPENING A FILE AND CHECK THAT! */
     
@@ -148,24 +175,58 @@ void create_daemon(){
 
 int main(void){
     /*take a name for syslog or give it a default value*/
-    
+   
+    char tempbuf;
     create_daemon();
+    int retval;
+    short revents;
+    char temp_read;
+    char temp[MAX_FILELEN];
+   
+    log_message(SYSLOG_FILE, "opening file");
+    fds.fd = open("/sys/kernel/kobject_kw/kw_info", O_RDONLY | O_NONBLOCK);
+    fds.events = POLLPRI;
     
+    while(read(fds.fd, &temp_read, 1) != 0){
+		  log_message(SYSLOG_FILE, "Reading file"); 		
+	}
+	
     /* Run task*/
     while(1) {
         
-        if(i > 10){
-            log_message(SYSLOG_FILE, "Daemon exiting from within");
-            exit(EXIT_SUCCESS);
-        }
+       	if(fds.fd < 0){
+       		log_message(SYSLOG_FILE, "Error open syslog file");
+        	close(fds.fd);
+        	exit(EXIT_FAILURE);
+       	}
+       	
         
-        log_message(SYSLOG_FILE, "This message comes from daemon");
-       	write_to_file("Daemon speaking");
-        sleep(1);
-        i++;
+        
+        log_message(SYSLOG_FILE, "polling");
+        retval = poll(&fds, 1, -1);
+        if(retval < 0 ){
+        	log_message(SYSLOG_FILE, "Error poll");
+        	close(fds.fd);
+        	exit(EXIT_FAILURE);
+        	
+        } else{
+		    close(fds.fd);
+		    fp = fopen("/sys/kernel/kobject_kw/kw_info", "r");
+		    
+		    char temp[MAX_FILELEN];
+		   	
+		    fscanf(fp, "%s", temp);
+		   	write_to_file(temp);
+		   	fclose(fp);	
+		   	
+		   	fds.fd = open("/sys/kernel/kobject_kw/kw_info", O_RDONLY | O_NONBLOCK);
+		   	while(read(fds.fd, &temp_read, 1) != 0){
+		   		
+		   	}
+        }
     }
     
-    
+    close(fds.fd);
     log_message(SYSLOG_FILE,"Daemon exiting from within, wtf");
     exit(EXIT_FAILURE);
 }

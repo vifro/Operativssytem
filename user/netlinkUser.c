@@ -48,16 +48,12 @@ int recieve_message(void);
 int open_connection(void);
 int cr_tlv_msg(unsigned char* buffer, char* string, int number);
 int recv_tlv_msg(unsigned char* buffer, int pload_len);
+int loop_message(char *keyvalue);
 
-
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     
     printf("Hello, World! This is a test of simple netlink implementation\n");
-    struct TLV_holder tlv_holder1, tlv_holder2;
-    unsigned char buffer[MAX_PAYLOAD] = {0};
-    int pload_len = 0;
-    int err = 0;
-    int i = 0;
+    char *temp;
     
     set_src_addr();
     set_dest_addr();
@@ -67,11 +63,49 @@ int main(int argc, char* argv[]) {
         return ERROR;
     }
     
-    while(i < 10){
+    
+    if(argc == 3){
+    	
+    	printf("argc is 3\n");
+    	temp = argv[1];
+    	seqNo = atoi(argv[2]);
+    	printf("%s - %d", temp, seqNo);
+    	loop_message(temp);
+    } else if (argc == 1){
+    	printf("no arguments\n");
+    	temp = "Name Namesson";
+    	loop_message(temp);
+    } else {
+    	printf("Wrong argument count, shoud be: \
+    							./application [name] [sequencenumber], or nothing\n");
+    	exit(EXIT_FAILURE);
+    }
+    
+    
+    
+    close(sock_fd);
+	 
+    return SUCCESS;
+} 
+
+int loop_message(char *keyvalue){
+	struct TLV_holder tlv_holder1, tlv_holder2;
+    unsigned char buffer[MAX_PAYLOAD];
+    char *temp_string;
+    char temp_string1[256];
+    int pload_len = 0;
+    int err = 0;
+    int i = 0;
+
+	while(i < 10){
     	sleep(1); // seconds
     	
+    	
+    	sprintf(temp_string1, "%s-%d", keyvalue, seqNo);
+    	temp_string = temp_string1;
         /* Message out, build, serialize, print for debugging and free */
-        pload_len = cr_tlv_msg(buffer, "Name Namesson", 19900909);
+        printf("this is tempstring: %s\n", temp_string);
+        pload_len = cr_tlv_msg(buffer, temp_string, 19900909);
         
         if(pload_len < 0) {
             printf("Error creating tlv");
@@ -80,7 +114,7 @@ int main(int argc, char* argv[]) {
                 
         
 		if(send_message(pload_len, buffer) != 0){
-				
+				exit(-1);
 		}
 		
 		if(recieve_message() != 0){
@@ -91,11 +125,8 @@ int main(int argc, char* argv[]) {
         free(nl_hdr);
 		i++;
     }
-    
-    close(sock_fd);
-	 
-    return SUCCESS;
 }
+
 
 void set_src_addr(){
 
@@ -127,13 +158,13 @@ int cr_tlv_msg(unsigned char* buffer, char* string, int number){
     tlv_add_instruction(&tlv_holder1, WRITE_INSTR);
     tlv_add_string(&tlv_holder1, string);
     tlv_add_integer(&tlv_holder1, number);
-    
+    printf("print tlv holder\n");
+   	print_tlv(&tlv_holder1);
     serialize_tlv(&tlv_holder1, buffer, &pload_len);
     free_tlv(&tlv_holder1);
     
     return pload_len;
 }
-
 
 int recv_tlv_msg(unsigned char* buffer, int pload_len) {
 
@@ -141,9 +172,6 @@ int recv_tlv_msg(unsigned char* buffer, int pload_len) {
         
     memset(&tlv_reciever, 0 , sizeof(tlv_reciever));
     deserialize_tlv(&tlv_reciever, buffer, pload_len);
-    
-    //print_tlv(&tlv_reciever);
-    
     free_tlv(&tlv_reciever);
     
     return SUCCESS;
@@ -158,20 +186,17 @@ int32_t conf_msg(int option, char* message, int key, unsigned char* buffer) {
 
 int send_message(int len, unsigned char *message){
     ssize_t size;
-	//unsigned char buffer[MAX_PAYLOAD];
-    //struct iovec iov = {nl_hdr, nl_hdr->nlmsg_len};
-    //struct msghdr msg =  { &dest_addr, sizeof(dest_addr), &iov, 1, NULL, 0, 0 };
 	PID = getpid();
 	
-	
-	
+	/* Adding information to header */
     nl_hdr = (struct nlmsghdr*)malloc(NLMSG_SPACE(MAX_PAYLOAD));
     memset(nl_hdr, 0 , sizeof(struct nlmsghdr));
-    nl_hdr->nlmsg_len = NLMSG_LENGTH(len); // length of payload without NLMSG_ALIGN
+    nl_hdr->nlmsg_len = NLMSG_LENGTH(len);
     nl_hdr->nlmsg_pid = PID;
     nl_hdr->nlmsg_flags = 0;
     nl_hdr->nlmsg_seq = seqNo++;
-
+	
+	/* Point the headers infomation to the msghdr and iov */
     iov.iov_base = (void*)nl_hdr;
     iov.iov_len = nl_hdr->nlmsg_len;
     msg.msg_name = (void *)&dest_addr;
@@ -179,13 +204,12 @@ int send_message(int len, unsigned char *message){
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1; /* number of iov structs. */ 
 
-    //TODO Use tlv to prepare a message And fix to correct size, as buffer.
-    //strcpy(NLMSG_DATA(nl_hdr), message);
+   	/* Copy the message to payload */
     memcpy(NLMSG_DATA(nl_hdr), message, len);
 	
     size = sendmsg(sock_fd, &msg, 0);
-    if(size < (ssize_t)0 ) {
-        printf("recieved %zu from sendmsg", size);
+    if(size < 0 ) {
+        printf("recieved %zu from sendmsg\n", size);
         return ERROR;
     }
     printf("\nPID-%d sending with sequence number:%d\n", src_addr.nl_pid, seqNo);
@@ -193,6 +217,15 @@ int send_message(int len, unsigned char *message){
     return SUCCESS;
 
 }
+
+/*
+   However, reliable transmissions from kernel to user are impossible in
+   any case.  The kernel can't send a  netlink  message  if  the  socket
+   buffer  is  full:  the message will be dropped and the kernel and the
+   user-space process will no longer have the same view of kernel state.
+   It  is  up  to  the  application to detect when this happens (via the
+   ENOBUFS error returned by recvmsg(2)) and resynchronize.
+*/
 
 int recieve_message(){
 	memset(nl_hdr, 0 , sizeof(struct nlmsghdr));

@@ -21,6 +21,11 @@
 #include <asm/types.h>
 #include <linux/string.h>
 #include <linux/skbuff.h>
+#include <linux/printk.h> 
+#include <linux/kobject.h> 
+#include <linux/sysfs.h> 
+#include <linux/init.h> 
+#include <linux/fs.h> 
 
 
 /*
@@ -44,6 +49,71 @@
 unsigned char *ptr;
 struct sock *nl_sock = NULL;
 
+
+/* ------------------------------ sysfs----------------------------*/
+
+#ifndef MESS_SIZE_MAX
+#define MESS_SIZE_MAX 256
+#endif
+
+/*
+ * This module shows how to create a simple subdirectory in sysfs called
+ * /sys/kernel/kobject-example  In that directory, 3 files are created:
+ * "foo", "baz", and "bar".  If an integer is written to these files, it can be
+ * later read out of it.
+ */
+
+static char kw_info[MESS_SIZE_MAX] = "hello\n";
+static int container_size = 6;
+
+static struct kobject *kw_kobj;
+
+/*
+ * The "foo" file where a static variable is read from and written to.
+ */
+static ssize_t foo_show(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf)
+{	
+	return scnprintf(buf, PAGE_SIZE, "%s", kw_info);
+	//return strncpy(buf, kw_info, container_size);;
+}
+
+static ssize_t foo_store(struct kobject *kobj, struct kobj_attribute *attr,
+			 const char *buf, size_t count)
+{
+	container_size = min( (size_t)MESS_SIZE_MAX, count);
+	strncpy(kw_info, buf, container_size);
+	sysfs_notify(kw_kobj, NULL, "kw_info");
+	return count;
+}
+
+/* Sysfs attributes cannot be world-writable. */
+static struct kobj_attribute kw_attribute =
+	__ATTR(kw_info, 0664, foo_show, foo_store);
+
+
+
+/*
+ * Create a group of attributes so that we can create and destroy them all
+ * at once.
+ */
+static struct attribute *attrs[] = {
+	&kw_attribute.attr,
+	NULL,	/* need to NULL terminate the list of attributes */
+};
+
+/*
+ * An unnamed attribute group will put all of the attributes directly in
+ * the kobject directory.  If we specify a name, a subdirectory will be
+ * created for the attributes with the directory being the name of the
+ * attribute group.
+ */
+static struct attribute_group attr_group = {
+	.attrs = attrs,
+};
+
+
+/* ------------------------ netlink functions ----------------------*/
 /*
 * Send back to user, given sequence number and the pid of process to be reached.
 *
@@ -53,9 +123,16 @@ int nl_send_msg(u32 rec_pid , int seqNr, int status) {
 	struct sk_buff *skb;
 	struct nlmsghdr *nl_hdr;
     unsigned char buffer[MAX_PAYLOAD] = {0}; //buffer used to construct message
-	int err = 0;                        // err
-    int pload_length = 0;               //length of tlv payload in bytes
+	
+	int err = 0;                        	 // err
+    int pload_length = 0;               	 //length of tlv payload in bytes
+    char temp_string[200];
     
+    
+    sprintf(temp_string, "seqnr: %d \n", seqNr);
+	strcpy(kw_info, temp_string);
+	sysfs_notify(kw_kobj, NULL, "kw_info");
+	
 	
     if(rec_pid == 0) {
         pr_err("Dont send to kernel or recieve from kernel!");
@@ -66,7 +143,7 @@ int nl_send_msg(u32 rec_pid , int seqNr, int status) {
 	skb = nlmsg_new(NLMSG_SPACE(MAX_PAYLOAD), GFP_KERNEL);
 
 	if(!skb){
-		pr_err("vailed to allocate skb");
+		pr_err("failed to allocate skb");
 		return -1;
 	}
 
@@ -144,10 +221,36 @@ static void nl_recv_callback(struct sk_buff *skb) {
 *			Create a connection
 */
 static int __init nlmodule_init(void) {
+	
 	struct netlink_kernel_cfg cfg = {
 		.groups = 1,
 		.input = nl_recv_callback,
 	};
+	int ret;
+
+	/*
+	 * Create a simple kobject with the name of "kobject_example",
+	 * located under /sys/kernel/
+	 *
+	 * As this is a simple directory, no uevent will be sent to
+	 * userspace.  That is why this function should not be used for
+	 * any type of dynamic kobjects, where the name and number are
+	 * not known ahead of time.
+	 */
+	kw_kobj = kobject_create_and_add("kobject_kw", kernel_kobj);
+	if (!kw_kobj)
+		return -ENOMEM;
+
+
+	/* Create the files associated with this kobject */
+	ret = sysfs_create_group(kw_kobj, &attr_group);
+	if (ret ) {
+		pr_err("Cant create sysfs_group");
+		kobject_put(kw_kobj);
+		netlink_kernel_release(nl_sock);
+		kvstore_exit();
+	}
+	
 
 	printk("Entering: %s\n", __FUNCTION__);
 	nl_sock = netlink_kernel_create(&init_net, NETLINK_USER, &cfg);
@@ -164,7 +267,7 @@ static int __init nlmodule_init(void) {
 	}
 
 	pr_info("Successfully created netlink socket.");
-	return 0;
+	return ret;
 }
 
 /*
@@ -175,7 +278,7 @@ static int __init nlmodule_init(void) {
 static void __exit nlmodule_exit(void) {
 	netlink_kernel_release(nl_sock);
 	kvstore_exit();
-
+	kobject_put(kw_kobj);
 	pr_info("exiting the nl module");
 }
 
