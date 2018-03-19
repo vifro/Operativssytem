@@ -248,7 +248,6 @@ static int __init nlmodule_init(void) {
 		pr_err("Cant create sysfs_group");
 		kobject_put(kw_kobj);
 		netlink_kernel_release(nl_sock);
-		kvstore_exit();
 	}
 	
 
@@ -260,7 +259,7 @@ static int __init nlmodule_init(void) {
 		return -10;
 	}
 
-	if(!kvstore_init())
+	if(!kvs_init())
 	{
 		pr_err("Failed to initialize KVS.");
 		return -10;
@@ -278,7 +277,7 @@ static int __init nlmodule_init(void) {
 */
 static void __exit nlmodule_exit(void) {
 	netlink_kernel_release(nl_sock);
-	kvstore_exit();
+	kvs_exit();
 	kobject_put(kw_kobj);
 	pr_info("exiting the nl module");
 }

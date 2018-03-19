@@ -20,9 +20,6 @@ DATATYPES parse_int    = TLV_INTEGER;
 #define INSTR_INDEX 0
 #endif
 
-
-
-
 enum { TYPE_READ, TYPE_WRITE, TYPE_INSTR = 255 };
 
 int construct_kwstring(struct TLV_holder recieved) {
@@ -49,44 +46,45 @@ int construct_kwstring(struct TLV_holder recieved) {
  * If successfully completed, send key and value to a new function. 
  *
  */
-int write_to_storage (struct TLV_holder recieved) {
+int write_to_storage(void)
+{
+    char * key, * value;
+    int value_len;
 
-    if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string){
-        pr_info("[read_from_storage] - not a valid value");
+    if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string
+        || recieved.tlv_arr[INSTR_INDEX + 2].type != parse_string)
+    {
+        pr_info("[write_to_storage] - incorrect key/value field type");
+
         return tlv_failed;
     }
+
+    key = (char *)recieved.tlv_arr[INSTR_INDEX + 1].data;
+    value = (char *)recieved.tlv_arr[INSTR_INDEX + 2].data;
+    value_len = recieved.tlv_arr[INSTR_INDEX + 2].len;
     
-    construct_kwstring(recieved);
-   	//TODO write to storage.
-   	
+    // Commented out for the moment, uncomment if necessary!
+    //construct_kwstring(recieved);
+
+    pr_info("[write_to_storage] - key: %s", key);
+    pr_info("[write_to_storage] - data: %s (%d bytes)", value, value_len);
+
+    kvs_insert(key, value, value_len);
     return tlv_success;
 }
 
 /*
+
  * Given a key values, retrieves the value from storage. 
  */
-int read_from_storage(struct TLV_holder recieved) {
-
-    if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string){
-        pr_info("[read_from_storage] - not a key");
+int read_from_storage(struct TLV_holder recieved) { 
+    if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string)
+    {
+        pr_info("[read_from_storage] - incorrect key field type");
         return tlv_failed;
     }
-    
-    //memcpy(&value_key, recieved.tlv_arr[INSTR_INDEX + 1].data, sizeof(int32_t));
-    
     
     //TODO Return the value from key-value storage
-    if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string) {
-        pr_info("[read_from_storage] - not a valid value");
-        return tlv_failed;
-    }
-
-    pr_info("[write_to_storage] - data: %s",
-            (char*)recieved.tlv_arr[INSTR_INDEX + 1].data);
-
-    // TODO replace "test" key with the actual key
-    kvstore_insert("test", recieved.tlv_arr[INSTR_INDEX + 1].data,
-			recieved.tlv_arr[INSTR_INDEX + 1].len);
 
     return tlv_success;
 }
@@ -122,13 +120,11 @@ int check_instr(struct TLV_holder recieved) {
         case TYPE_READ:
             pr_info("[check_instr] - READ");
 
-            // TODO put read buffer as parameter
             read_from_storage(recieved);
             break;
         case TYPE_WRITE:
-            pr_info("[check_instr] - WRITE " );
+            pr_info("[check_instr] - WRITE" );
 
-            // TODO key string, value data and length parameter
             write_to_storage(recieved);
             break;
         default:

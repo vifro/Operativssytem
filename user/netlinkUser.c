@@ -52,7 +52,7 @@ int conf_msg(int option, char* message, int key, unsigned char* buffer);
 int send_message(int payload_length,unsigned char* mess);
 int recieve_message(void);
 int open_connection(void);
-int cr_tlv_msg(unsigned char* buffer, char* string, int number);
+int cr_tlv_msg(unsigned char* buffer, char* string, char * number);
 int recv_tlv_msg(unsigned char* buffer, int pload_len);
 int loop_message(char *keyvalue);
 
@@ -121,7 +121,7 @@ int loop_message(char *keyvalue){
     	temp_string = temp_string1;
         /* Message out, build, serialize, print for debugging and free */
         printf("this is tempstring: %s\n", temp_string);
-        pload_len = cr_tlv_msg(buffer, temp_string, 19900909);
+        pload_len = cr_tlv_msg(buffer, temp_string, "19900909");
         
         if(pload_len < 0) {
             printf("Error creating tlv");
@@ -172,21 +172,20 @@ void set_dest_addr(){
     dest_addr.nl_groups = 0;
 }
 
-/*
- * 
- */
-int cr_tlv_msg(unsigned char* buffer, char* string, int number){
-    
+int cr_tlv_msg(unsigned char* buffer, char* key, char* value)
+{
     struct TLV_holder tlv_holder1;
     int pload_len = -1;
     
     memset(&tlv_holder1, 0 , sizeof(tlv_holder1));
     
     tlv_add_instruction(&tlv_holder1, WRITE_INSTR);
-    tlv_add_string(&tlv_holder1, string);
-    tlv_add_integer(&tlv_holder1, number);
-    printf("print tlv holder\n");
-   	print_tlv(&tlv_holder1);
+    tlv_add_string(&tlv_holder1, key);
+    tlv_add_string(&tlv_holder1, value);
+
+    //printf("print tlv holder\n");
+    //print_tlv(&tlv_holder1);
+    
     serialize_tlv(&tlv_holder1, buffer, &pload_len);
     free_tlv(&tlv_holder1);
     
