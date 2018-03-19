@@ -81,16 +81,17 @@ char * kvs_get(const char * key)
 void kvs_insert(const char * key, const void * value, const int value_len)
 {
 	struct kvs_object * obj;
-
+	
 	/* Get the container object ready. */
 
 	obj = kzalloc(sizeof(struct kvs_object), GFP_KERNEL);
+	obj->hash = 1233;
 	if(!obj)
 	{
 		pr_warn("[kvs_insert] - unable to allocate KVS object!");
 		return;
 	}
-
+	
 	obj->value = kzalloc(value_len, GFP_KERNEL);
 	if(obj->value)
 	{
@@ -125,5 +126,5 @@ u32 kvs_hash(const void * data, u32 len, u32 seed)
 {
 	const struct kvs_object * obj = data;
 
-	return jhash(obj->key, strlen((char *)obj->key), seed);
+	return jhash(&obj->hash, sizeof(obj->hash), seed);
 }

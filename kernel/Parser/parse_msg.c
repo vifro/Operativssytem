@@ -46,7 +46,7 @@ int construct_kwstring(struct TLV_holder recieved) {
  * If successfully completed, send key and value to a new function. 
  *
  */
-int write_to_storage(void)
+int write_to_storage(struct TLV_holder recieved)
 {
     char * key, * value;
     int value_len;
@@ -68,8 +68,10 @@ int write_to_storage(void)
 
     pr_info("[write_to_storage] - key: %s", key);
     pr_info("[write_to_storage] - data: %s (%d bytes)", value, value_len);
-
     kvs_insert(key, value, value_len);
+    
+    construct_kwstring(recieved);
+    
     return tlv_success;
 }
 
