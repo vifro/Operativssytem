@@ -48,6 +48,7 @@ int i = 0; //Counter for test, needs to be removed
 
 pid_t pid, sid; //pid and session id
 
+/* file */
 struct pollfd fds;
 FILE *fp;
 char path[MAX_FILELEN];
@@ -64,7 +65,7 @@ void log_message(char *filename,  const char *message)
 }
 
 /*
- * Handling system signals
+ * Handling system signals. 
  */
 void signal_handler(int sig){
     switch(sig) {
@@ -80,6 +81,13 @@ void signal_handler(int sig){
     }
 }
 
+/*
+ * Write to file. 
+ * 		Saved the message to file . If an error occured, Exit the program.
+ * 		
+ *		For further development. Make the check then redo the try in a 
+ *		fashionable manner.
+ */
 void write_to_file(char message[]){
 	
 	FILE *temp_fp;
@@ -94,7 +102,7 @@ void write_to_file(char message[]){
 	}
 	
 	log_message(SYSLOG_FILE, "Before Write");
-	err = fprintf(temp_fp, "%s %s %s %d","key:", message, " - value", 2012);
+	err = fprintf(temp_fp, "%s %s %s %d","key: \n", message, " - value", 2012);
 	
 	if(err < 0){
 		log_message(SYSLOG_FILE, "An error occured while writing to file");
@@ -110,7 +118,7 @@ void write_to_file(char message[]){
 }
 
 /*
- * Creates a daemon
+ * Creates a daemon, each step of the process is described in the code.
  *
  */
 void create_daemon(){
@@ -157,8 +165,7 @@ void create_daemon(){
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
     /*
-    
-    
+   
     /* CHECK MUTUAL EXCLUTION, MAYBE BY OPENING A FILE AND CHECK THAT! */
     
     /* Ignoring signals */
@@ -173,11 +180,22 @@ void create_daemon(){
     log_message(SYSLOG_FILE, "Setup - SUCCESS");    
 }
 
+/*
+ * Creata a daemon and wait for updates in the virtual filesystem 
+ * located at /sys/kernel/kobject_kw/kw_info.
+ * 
+ * When a change in that files content is detected, call the function
+ * write_to_file for saving to disk. 
+ *
+ * Important that you read the whole file before waiting for a change with poll!
+ * Also close and reopen the pollfd after each update.
+ * Read poll.h for more information!  
+ */
 int main(void){
-    /*take a name for syslog or give it a default value*/
-   
-    char tempbuf;
+    /*Create daemon first*/
     create_daemon();
+    
+    char tempbuf;
     int retval;
     short revents;
     char temp_read;
@@ -216,6 +234,8 @@ int main(void){
 		    char temp[MAX_FILELEN];
 		   	
 		    fscanf(fp, "%s", temp);
+		    
+            log_message(SYSLOG_FILE,temp);
 		   	write_to_file(temp);
 		   	fclose(fp);	
 		   	

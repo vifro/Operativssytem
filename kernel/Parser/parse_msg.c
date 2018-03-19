@@ -20,42 +20,60 @@ DATATYPES parse_int    = TLV_INTEGER;
 #define INSTR_INDEX 0
 #endif
 
-struct TLV_holder recieved;
+
+
 
 enum { TYPE_READ, TYPE_WRITE, TYPE_INSTR = 255 };
 
-/*
- *
+int construct_kwstring(struct TLV_holder recieved) {
+
+	char temp_string[200]; 
+	int value = -1;
+	
+	pr_info("[write_to_storage] - dataKey: %s", (char*)recieved.tlv_arr[INSTR_INDEX + 1].data);
+    
+    memcpy(&value, recieved.tlv_arr[INSTR_INDEX + 2].data, sizeof(int32_t));
+    pr_info("[write_to_storage] - data: %d", value);
+    
+    sprintf(temp_string, "key:%s - value%d",
+    					 (char*)recieved.tlv_arr[INSTR_INDEX + 1].data, value);
+    pr_info("%s", temp_string);
+    
+    
+    return 0;
+
+}
+
+/* 
+ * Given a key and a value. Saves that infromation in a temporary hash table. 
+ * If successfully completed, send key and value to a new function. 
  *
  */
-int write_to_storage (void) {
+int write_to_storage (struct TLV_holder recieved) {
 
-    int value_key = -1;
-    
     if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string){
         pr_info("[read_from_storage] - not a valid value");
         return tlv_failed;
     }
     
-    pr_info("[write_to_storage] - dataKey: %s", 
-            (char*)recieved.tlv_arr[INSTR_INDEX + 1].data);
-    
-    memcpy(&value_key, recieved.tlv_arr[INSTR_INDEX + 2].data, sizeof(int32_t));
-    pr_info("[write_to_storage] - data: %d", value_key);
+    construct_kwstring(recieved);
+   	//TODO write to storage.
    	
     return tlv_success;
 }
 
-int read_from_storage(void) {
-    int value_key = -1;
-    
+/*
+ * Given a key values, retrieves the value from storage. 
+ */
+int read_from_storage(struct TLV_holder recieved) {
+
     if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string){
         pr_info("[read_from_storage] - not a key");
         return tlv_failed;
     }
     
     //memcpy(&value_key, recieved.tlv_arr[INSTR_INDEX + 1].data, sizeof(int32_t));
-    pr_info("[read_from_storage] - data %d ", value_key);
+    
     
     //TODO Return the value from key-value storage
     if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string) {
@@ -74,12 +92,12 @@ int read_from_storage(void) {
 }
 
 /*
- *
+ * Check instruction type. THen call appropriate function depending on the
+ * message type. 
  */
-int check_instr(int rec_pid, int seq)
-{
+int check_instr(struct TLV_holder recieved) {
     int incoming_instr;
-
+	
     pr_info("nr: %d - maxObj %d", recieved.nr_of_structs, MAX_OBJS);
 
     if(recieved.nr_of_structs != MAX_OBJS){
@@ -105,13 +123,13 @@ int check_instr(int rec_pid, int seq)
             pr_info("[check_instr] - READ");
 
             // TODO put read buffer as parameter
-            read_from_storage();
+            read_from_storage(recieved);
             break;
         case TYPE_WRITE:
             pr_info("[check_instr] - WRITE " );
 
             // TODO key string, value data and length parameter
-            write_to_storage();
+            write_to_storage(recieved);
             break;
         default:
             //TODO send error message back.
@@ -123,12 +141,12 @@ int check_instr(int rec_pid, int seq)
 
 
 /*
-*   parse_message
-*
-*/
+ * parse_message
+ * 	Checks incoming buffer and parses it as a tlv message.    
+ */
 int parse_tlv_message(int seq, int rec_pid ,unsigned char* buffer, int buf_len) {
     int err;
-
+	struct TLV_holder recieved;
     memset(&recieved, 0 , sizeof(recieved));
 
     err = deserialize_tlv(&recieved, buffer,  buf_len);
@@ -140,7 +158,7 @@ int parse_tlv_message(int seq, int rec_pid ,unsigned char* buffer, int buf_len) 
     pr_info("%d", TYPE_INSTR);
     //print_tlv(&recieved); // Just for checking attributes
 
-    if(check_instr(rec_pid, seq) < 0) {
+    if(check_instr(recieved) < 0) {
     	//TODO check instructions
         return tlv_failed;
     } //Check which instruction
@@ -152,9 +170,11 @@ int parse_tlv_message(int seq, int rec_pid ,unsigned char* buffer, int buf_len) 
 }
 
 /**
+* Construct a TLV message. 
+*   Takes the status which will be put in a tlv message which will be  
+*   serialized in to the buffer.
 *
-*
-*
+* Returns a serialized buffer.
 *
 */
 int create_tlv_message(int status, unsigned char* buffer) {

@@ -128,8 +128,8 @@ int nl_send_msg(u32 rec_pid , int seqNr, int status) {
     int pload_length = 0;               	 //length of tlv payload in bytes
     char temp_string[200];
     
-    
-    sprintf(temp_string, "seqnr: %d \n", seqNr);
+    sprintf(temp_string, "%d", seqNr);
+    pr_info("%s", temp_string);
 	strcpy(kw_info, temp_string);
 	sysfs_notify(kw_kobj, NULL, "kw_info");
 	
@@ -167,7 +167,7 @@ int nl_send_msg(u32 rec_pid , int seqNr, int status) {
 
 	NETLINK_CB(skb).dst_group = 0; /* Unicast */
 	NETLINK_CB(skb).portid = 0; /* from kernel */
-
+	
 	memcpy(NLMSG_DATA(nl_hdr), buffer, pload_length);
 
 	err =  nlmsg_unicast(nl_sock, skb, rec_pid);
@@ -221,12 +221,12 @@ static void nl_recv_callback(struct sk_buff *skb) {
 *			Create a connection
 */
 static int __init nlmodule_init(void) {
-	
+	int ret;
 	struct netlink_kernel_cfg cfg = {
 		.groups = 1,
 		.input = nl_recv_callback,
 	};
-	int ret;
+	
 
 	/*
 	 * Create a simple kobject with the name of "kobject_example",
@@ -272,8 +272,9 @@ static int __init nlmodule_init(void) {
 
 /*
 * exit module:
-* 			Release socket.
-*
+* 		Release socket.
+*		close kw_store 
+*		and decrement kw_obj counter.
 */
 static void __exit nlmodule_exit(void) {
 	netlink_kernel_release(nl_sock);

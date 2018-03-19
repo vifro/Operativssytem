@@ -1,10 +1,13 @@
 /*
- *
+ * Creates, sends and receives messages over netlink.
+ * Messages is supposed to be on the type TLV and will be sent in packages of 
+ * three. First is to declare instruction, second is key value, and the third is
+ * the value to be stored.
  *
  * Author: Victor From <c13vfm@cs.umu.se>
  * 
- *  
- *
+ * To see how the messages are pu together and parsed, check the TLV/tlv.h
+ * and tlv.c for implementation.
  */
 
 #include <stdio.h>
@@ -20,7 +23,7 @@
 
 #define SUCCESS			0
 #define ERROR			-1
-#define MAX_PAYLOAD     4096
+#define MAX_PAYLOAD     4096	//Page size
 #define NETLINK_USER    31
 #define READ_INSTR		0
 #define WRITE_INSTR 	1
@@ -29,14 +32,17 @@
 /* Variables for handling scket communication*/
 struct sockaddr_nl src_addr, dest_addr;
 int sock_fd, seqNo;
+
+/* Message  */
 struct iovec iov;
 struct msghdr msg;
-/*NETLINK message pointers */
 
+/*NETLINK message pointers */
 struct nlmsghdr *nl_hdr = NULL;
 
 /*Process pid*/
 pid_t PID;
+
 int seqNo = 1337;
 
 
@@ -50,6 +56,12 @@ int cr_tlv_msg(unsigned char* buffer, char* string, int number);
 int recv_tlv_msg(unsigned char* buffer, int pload_len);
 int loop_message(char *keyvalue);
 
+
+/* 
+ * Takes either two arguments or nothing. The first is a char* describing a key
+ * and the second is a char / integer describing the value to be stored.
+ * No arguments results in default values.
+ */
 int main(int argc, char *argv[]) {
     
     printf("Hello, World! This is a test of simple netlink implementation\n");
@@ -62,7 +74,6 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Could not connect\n");
         return ERROR;
     }
-    
     
     if(argc == 3){
     	
@@ -88,6 +99,11 @@ int main(int argc, char *argv[]) {
     return SUCCESS;
 } 
 
+/*
+ * Create several messages to be sent over sockets to userspace. Creates unique 
+ * key values for each message.
+ * 
+ */
 int loop_message(char *keyvalue){
 	struct TLV_holder tlv_holder1, tlv_holder2;
     unsigned char buffer[MAX_PAYLOAD];
@@ -128,19 +144,27 @@ int loop_message(char *keyvalue){
 }
 
 
+/*
+ * Sets family for netlink connection and sets pid to the process.
+ * If pid is set before bind, application has responsibility to add a 
+ * unique pid to each connection. 
+ */
 void set_src_addr(){
 
     memset(&src_addr, 0, sizeof(struct sockaddr_nl));
     src_addr.nl_family = AF_NETLINK;
 
-    /*If pid is set before bind, application has the responsibility to add 
-    *  unique pid to each connection. Identifies a socket, not a process. 
-    */
+    /* Identifies a socket, not a process.  */    
     src_addr.nl_pid = getpid();
 
 
 }
 
+
+/*
+ * Sets destination address. 
+ * pid = 0 for kernel.
+ */
 void set_dest_addr(){
     memset(&dest_addr, 0, sizeof(struct sockaddr_nl));
     dest_addr.nl_family = AF_NETLINK;
@@ -148,6 +172,9 @@ void set_dest_addr(){
     dest_addr.nl_groups = 0;
 }
 
+/*
+ * 
+ */
 int cr_tlv_msg(unsigned char* buffer, char* string, int number){
     
     struct TLV_holder tlv_holder1;
@@ -166,6 +193,9 @@ int cr_tlv_msg(unsigned char* buffer, char* string, int number){
     return pload_len;
 }
 
+/*
+ * Receives buffer to deserialises a TLV message. 
+ */
 int recv_tlv_msg(unsigned char* buffer, int pload_len) {
 
     struct TLV_holder tlv_reciever;
@@ -177,13 +207,10 @@ int recv_tlv_msg(unsigned char* buffer, int pload_len) {
     return SUCCESS;
 }
 
-int32_t conf_msg(int option, char* message, int key, unsigned char* buffer) {
-    
-
-	//TODO FIX inparameters, set upp correct messages and return serialized.
-	return tlv_success;
-}
-
+/*
+ * Sets parameters in netlink message headers.
+ * 
+ */
 int send_message(int len, unsigned char *message){
     ssize_t size;
 	PID = getpid();
@@ -191,22 +218,24 @@ int send_message(int len, unsigned char *message){
 	/* Adding information to header */
     nl_hdr = (struct nlmsghdr*)malloc(NLMSG_SPACE(MAX_PAYLOAD));
     memset(nl_hdr, 0 , sizeof(struct nlmsghdr));
-    nl_hdr->nlmsg_len = NLMSG_LENGTH(len);
-    nl_hdr->nlmsg_pid = PID;
+    nl_hdr->nlmsg_len = NLMSG_LENGTH(len);      // Length payload w/out padding.
+    nl_hdr->nlmsg_pid = PID; 			        // process pid
     nl_hdr->nlmsg_flags = 0;
-    nl_hdr->nlmsg_seq = seqNo++;
+    nl_hdr->nlmsg_seq = seqNo++;				// Keep track of respons
 	
 	/* Point the headers infomation to the msghdr and iov */
-    iov.iov_base = (void*)nl_hdr;
+    iov.iov_base = (void*)nl_hdr;				
     iov.iov_len = nl_hdr->nlmsg_len;
-    msg.msg_name = (void *)&dest_addr;
+    msg.msg_name = (void *)&dest_addr;			
     msg.msg_namelen = sizeof(dest_addr);
     msg.msg_iov = &iov;
-    msg.msg_iovlen = 1; /* number of iov structs. */ 
+    msg.msg_iovlen = 1; 						// number of iov structs. 
+
 
    	/* Copy the message to payload */
     memcpy(NLMSG_DATA(nl_hdr), message, len);
-	
+
+	/* Send message to kernel*/	
     size = sendmsg(sock_fd, &msg, 0);
     if(size < 0 ) {
         printf("recieved %zu from sendmsg\n", size);
@@ -218,7 +247,7 @@ int send_message(int len, unsigned char *message){
 
 }
 
-/*
+/* QUOTE: netlink.h
    However, reliable transmissions from kernel to user are impossible in
    any case.  The kernel can't send a  netlink  message  if  the  socket
    buffer  is  full:  the message will be dropped and the kernel and the
@@ -227,6 +256,9 @@ int send_message(int len, unsigned char *message){
    ENOBUFS error returned by recvmsg(2)) and resynchronize.
 */
 
+/*
+ * Recieve message from and parse kernel. 
+ */
 int recieve_message(){
 	memset(nl_hdr, 0 , sizeof(struct nlmsghdr));
 	
@@ -236,12 +268,16 @@ int recieve_message(){
     if(nl_hdr->nlmsg_pid != 0){
         printf("msg from unknown source, it has: %d \n", nl_hdr->nlmsg_pid);
     }
+    //TODO fix parameters. 
     printf("rec mess with seqnr: %d\n\n", seqNo);
     recv_tlv_msg(NLMSG_DATA(nl_hdr), 7);
         
     return SUCCESS;
 }
 
+/*
+ * Establish connection. 
+ */
 int open_connection(){
     sock_fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_USER);
 

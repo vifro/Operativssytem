@@ -104,7 +104,7 @@ int32_t serialize_tlv(struct TLV_holder *src, unsigned char* dest,
 }
 /*
 * 
-* deserializeing a byte array to a TLV struct.
+* Deserializeing a byte array to a TLV struct.
 *
 */
 int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src, 
