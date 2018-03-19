@@ -36,7 +36,6 @@ int construct_kwstring(struct TLV_holder recieved) {
     					 (char*)recieved.tlv_arr[INSTR_INDEX + 1].data, value);
     pr_info("%s", temp_string);
     
-    
     return 0;
 
 }
@@ -69,7 +68,6 @@ int write_to_storage(struct TLV_holder recieved)
     pr_info("[write_to_storage] - key: %s", key);
     pr_info("[write_to_storage] - data: %s (%d bytes)", value, value_len);
     kvs_insert(key, value, value_len);
-    
     construct_kwstring(recieved);
     
     return tlv_success;
