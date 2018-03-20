@@ -69,9 +69,15 @@ void kvs_exit(void)
  */
 char * kvs_get(const char * key)
 {
+	struct kvs_object * obj;
 
+	obj = rhashtable_lookup_fast(&kvs, key, kvs_params);
+	if(obj == NULL)
+	{
+		return NULL;
+	}
 
-	return NULL;
+	return obj->value;
 }
 
 /*
@@ -81,11 +87,11 @@ char * kvs_get(const char * key)
 void kvs_insert(const char * key, const void * value, const int value_len)
 {
 	struct kvs_object * obj;
-	
+
 	/* Get the container object ready. */
 
 	obj = kzalloc(sizeof(struct kvs_object), GFP_KERNEL);
-	obj->hash = 1233;
+	obj->hash = jhash(key, strlen(key), 0);
 	if(!obj)
 	{
 		pr_warn("[kvs_insert] - unable to allocate KVS object!");
@@ -115,7 +121,16 @@ void kvs_insert(const char * key, const void * value, const int value_len)
  */
 void kvs_remove(const char * key)
 {
-	
+	struct kvs_object * obj;
+
+	obj = rhashtable_lookup_fast(&kvs, key, kvs_params);
+	if(obj)
+	{
+		rhashtable_remove_fast(&kvs, &obj->node, kvs_params);
+
+		kfree(obj->value);
+		kfree(obj);
+	}
 }
 
 /*

@@ -44,6 +44,7 @@
 #define tlv_success 0
 #endif
 
+#define MAX_PAYLOAD 256
 
 #ifndef MAX_OBJS    
 #define MAX_OBJS    3

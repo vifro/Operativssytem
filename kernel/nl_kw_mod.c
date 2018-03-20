@@ -118,8 +118,8 @@ static struct attribute_group attr_group = {
 * Send back to user, given sequence number and the pid of process to be reached.
 *
 */
-int nl_send_msg(u32 rec_pid , int seqNr, int status) {
-
+int nl_send_msg(u32 rec_pid , int seqNr, int status, char * databuf)
+{
 	struct sk_buff *skb;
 	struct nlmsghdr *nl_hdr;
     unsigned char buffer[MAX_PAYLOAD] = {0}; //buffer used to construct message
@@ -148,11 +148,19 @@ int nl_send_msg(u32 rec_pid , int seqNr, int status) {
 	}
 
     /* create payload and recieve length */
+
     memset(buffer, 0, sizeof(buffer));
-    pload_length = create_tlv_message(status, buffer);
-    if(pload_length <= 0) {
-        pr_err("No message to send");
-        return -1;
+    if(databuf != NULL)
+    {
+        memcpy(buffer, databuf, MAX_PAYLOAD);
+    }
+    else
+    {
+        pload_length = create_tlv_message(status, buffer);
+        if(pload_length <= 0) {
+            pr_err("No message to send");
+            return -1;
+        }
     }
 
     /* Fill the header with data */

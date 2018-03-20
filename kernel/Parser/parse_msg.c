@@ -40,10 +40,10 @@ int construct_kwstring(struct TLV_holder recieved) {
 
 }
 
-/* 
- * Given a key and a value. Saves that infromation in a temporary hash table. 
- * If successfully completed, send key and value to a new function. 
- *
+/*
+ * write_to_storage
+ * Given a key and a value. Saves that infromation in a temporary hash table.
+ * If successfully completed, send key and value to a new function.
  */
 int write_to_storage(struct TLV_holder recieved)
 {
@@ -61,30 +61,46 @@ int write_to_storage(struct TLV_holder recieved)
     key = (char *)recieved.tlv_arr[INSTR_INDEX + 1].data;
     value = (char *)recieved.tlv_arr[INSTR_INDEX + 2].data;
     value_len = recieved.tlv_arr[INSTR_INDEX + 2].len;
-    
-    // Commented out for the moment, uncomment if necessary!
-    //construct_kwstring(recieved);
 
     pr_info("[write_to_storage] - key: %s", key);
     pr_info("[write_to_storage] - data: %s (%d bytes)", value, value_len);
     kvs_insert(key, value, value_len);
     construct_kwstring(recieved);
-    
+
     return tlv_success;
 }
 
 /*
-
- * Given a key values, retrieves the value from storage. 
+ * read_from_storage
+ * Given a key values, retrieves the value from storage.
  */
-int read_from_storage(struct TLV_holder recieved) { 
+int read_from_storage(struct TLV_holder recieved)
+{
+    struct TLV_holder transmitted;
+
+    char msgbuf[MAX_PAYLOAD];
+    int msglen = -1;
+
+    char * key, * value;
+
     if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string)
     {
         pr_info("[read_from_storage] - incorrect key field type");
         return tlv_failed;
     }
-    
-    //TODO Return the value from key-value storage
+
+    key = (char *)recieved.tlv_arr[INSTR_INDEX + 1].data;
+
+    value = kvs_get(key);
+    if(value != NULL)
+    {
+        memset(&transmitted, 0, sizeof(struct TLV_holder));
+
+        tlv_add_string(&transmitted, value);
+    }
+
+    serialize_tlv(&transmitted, msgbuf, &msglen);
+    free_tlv(&transmitted);
 
     return tlv_success;
 }
@@ -95,7 +111,7 @@ int read_from_storage(struct TLV_holder recieved) {
  */
 int check_instr(struct TLV_holder recieved) {
     int incoming_instr;
-	
+
     pr_info("nr: %d - maxObj %d", recieved.nr_of_structs, MAX_OBJS);
 
     if(recieved.nr_of_structs != MAX_OBJS){
@@ -142,7 +158,8 @@ int check_instr(struct TLV_holder recieved) {
  */
 int parse_tlv_message(int seq, int rec_pid ,unsigned char* buffer, int buf_len) {
     int err;
-	struct TLV_holder recieved;
+
+    struct TLV_holder recieved;
     memset(&recieved, 0 , sizeof(recieved));
 
     err = deserialize_tlv(&recieved, buffer,  buf_len);
@@ -162,7 +179,7 @@ int parse_tlv_message(int seq, int rec_pid ,unsigned char* buffer, int buf_len) 
     free_tlv(&recieved);
 
     //return tlv_success;
-    return nl_send_msg(rec_pid, seq, 1);
+    return nl_send_msg(rec_pid, seq, 1, NULL);
 }
 
 /**
