@@ -89,6 +89,7 @@ int main(int argc, char *argv[]) {
     } else {
     	printf("Wrong argument count, shoud be: \
     							./application [name] [sequencenumber], or nothing\n");
+    	close(sock_fd);
     	exit(EXIT_FAILURE);
     }
     
@@ -135,6 +136,8 @@ int loop_message(char *keyvalue){
 		
 		if(recieve_message() != 0){
 			printf("an error occured while recieving message\n");
+			close(sock_fd);
+			free(nl_hdr);
 			return ERROR;
 		}
         memset(buffer, 0, sizeof(buffer));

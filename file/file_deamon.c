@@ -96,13 +96,13 @@ void write_to_file(char message[]){
 	
 	temp_fp = fopen(path, "a"); //open in append mode, not existing == create
 	
-	if(fp == NULL){
+	if(temp_fp == NULL){
 		log_message(SYSLOG_FILE, "Could not open file");
 		exit(EXIT_FAILURE);
 	}
 	
 	log_message(SYSLOG_FILE, "Before Write");
-	err = fprintf(temp_fp, "%s %s %s %d","key: \n", message, " - value", 2012);
+	err = fprintf(temp_fp, "%s %s %s %d \n","key: ", message, " - value", 2012);
 	
 	if(err < 0){
 		log_message(SYSLOG_FILE, "An error occured while writing to file");

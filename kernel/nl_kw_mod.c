@@ -26,6 +26,10 @@
 #include <linux/sysfs.h> 
 #include <linux/init.h> 
 #include <linux/fs.h> 
+#include <linux/workqueue.h>
+#include <linux/slab.h>
+#include <linux/delay.h>
+#include <linux/spinlock.h>
 
 
 /*
@@ -49,6 +53,25 @@
 unsigned char *ptr;
 struct sock *nl_sock = NULL;
 
+/*--------------------  workers and locks  -------------------------*/
+static struct workqueue_struct *kw_wq;
+
+typedef struct {
+  struct work_struct my_work;
+  int   seq;
+  pid_t pid;
+  unsigned char *buffer;
+  int buflen; 
+} msg_work_t;
+
+msg_work_t *worker;
+
+
+
+static spinlock_t kw_info_lock;
+EXPORT_SYMBOL(kw_info_lock);
+
+static spinlock_t recieve_lock;
 
 /* ------------------------------ sysfs----------------------------*/
 
@@ -190,17 +213,30 @@ int nl_send_msg(u32 rec_pid , int seqNr, char *databuf)
 }
 
 
+static void nl_recv( struct work_struct *work) {
+	//extern spinlock_t kw_info_lock
+    msg_work_t *worker = (msg_work_t*)work;
+    if(parse_tlv_message(worker->seq, worker->pid, worker->buffer, worker->buflen) < 0)
+    	pr_err("nl_send_msg failed");
+        
+	kfree(worker->buffer);
+	kfree(worker);
+}
+
+
+
 /*
 * Callback function that 
 *
 */
 static void nl_recv_callback(struct sk_buff *skb) {
-    struct nlmsghdr *nl_hdr;
-    u32 pid;
+	struct nlmsghdr *nl_hdr;
+	u32 pid;
     int seq;
     int buf_len;
-    int err;
     unsigned char buffer[MAX_PAYLOAD]; // FIX the size
+	spin_lock(&recieve_lock);   
+    
 
  
  	/* Receive nlmsghdr to get correct data */
@@ -216,11 +252,21 @@ static void nl_recv_callback(struct sk_buff *skb) {
 
     memset(buffer, 0 , sizeof(buffer));
     memcpy(buffer, NLMSG_DATA(nl_hdr), buf_len);
-
-    /* Parse the payload */
-    err = parse_tlv_message(seq, pid, buffer, buf_len );
-    if(err < 0)
-        pr_info("nl_send_msg failed");
+    
+    worker = (msg_work_t* )kmalloc(sizeof(msg_work_t),GFP_KERNEL);
+    if(worker) {
+    	pr_info("creating work items\n");
+    	INIT_WORK((struct work_struct*) worker, nl_recv);
+    	worker->seq = nl_hdr->nlmsg_seq;
+    	worker->pid = nl_hdr->nlmsg_pid;
+    	worker->buffer = kzalloc(sizeof(buffer), GFP_KERNEL); 
+    	memcpy(worker->buffer, NLMSG_DATA(nl_hdr), NLMSG_PAYLOAD(nl_hdr, 0));
+    	worker->buflen = strlen(worker->buffer);
+    	if(queue_work(kw_wq, (struct work_struct*)worker) < 1){
+    		pr_warn("Could not queue work.\n");
+    	}
+    }
+    spin_unlock(&recieve_lock);
 }
 
 
@@ -235,8 +281,13 @@ static int __init nlmodule_init(void) {
 		.groups = 1,
 		.input = nl_recv_callback,
 	};
+	spin_lock_init(&recieve_lock);
 	
-
+	kw_wq = alloc_workqueue("wq", WQ_MEM_RECLAIM, 0);
+	if(!kw_wq) {
+		pr_err("could not allocate workqueue");
+		return -1;
+	}
 	/*
 	 * Create a simple kobject with the name of "kobject_example",
 	 * located under /sys/kernel/
