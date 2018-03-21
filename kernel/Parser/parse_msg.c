@@ -22,18 +22,18 @@ DATATYPES parse_int    = TLV_INTEGER;
 
 enum { TYPE_READ, TYPE_WRITE, TYPE_INSTR = 255 };
 
-int construct_kwstring(struct TLV_holder recieved) {
+int construct_kwstring(struct TLV_holder received) {
 
 	char temp_string[200]; 
 	int value = -1;
 	
-	pr_info("[write_to_storage] - dataKey: %s", (char*)recieved.tlv_arr[INSTR_INDEX + 1].data);
+	pr_info("[write_to_storage] - dataKey: %s", (char*)received.tlv_arr[INSTR_INDEX + 1].data);
     
-    memcpy(&value, recieved.tlv_arr[INSTR_INDEX + 2].data, sizeof(int32_t));
+    memcpy(&value, received.tlv_arr[INSTR_INDEX + 2].data, sizeof(int32_t));
     pr_info("[write_to_storage] - data: %d", value);
     
     sprintf(temp_string, "key:%s - value%d",
-    					 (char*)recieved.tlv_arr[INSTR_INDEX + 1].data, value);
+    					 (char*)received.tlv_arr[INSTR_INDEX + 1].data, value);
     pr_info("%s", temp_string);
     
     return 0;
@@ -45,27 +45,27 @@ int construct_kwstring(struct TLV_holder recieved) {
  * Given a key and a value. Saves that infromation in a temporary hash table.
  * If successfully completed, send key and value to a new function.
  */
-int write_to_storage(struct TLV_holder recieved)
+int write_to_storage(struct TLV_holder received)
 {
     char * key, * value;
     int value_len;
 
-    if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string
-        || recieved.tlv_arr[INSTR_INDEX + 2].type != parse_string)
+    if(received.tlv_arr[INSTR_INDEX + 1].type != parse_string
+        || received.tlv_arr[INSTR_INDEX + 2].type != parse_string)
     {
         pr_info("[write_to_storage] - incorrect key/value field type");
 
         return tlv_failed;
     }
 
-    key = (char *)recieved.tlv_arr[INSTR_INDEX + 1].data;
-    value = (char *)recieved.tlv_arr[INSTR_INDEX + 2].data;
-    value_len = recieved.tlv_arr[INSTR_INDEX + 2].len;
+    key = (char *)received.tlv_arr[INSTR_INDEX + 1].data;
+    value = (char *)received.tlv_arr[INSTR_INDEX + 2].data;
+    value_len = received.tlv_arr[INSTR_INDEX + 2].len;
 
     pr_info("[write_to_storage] - key: %s", key);
     pr_info("[write_to_storage] - data: %s (%d bytes)", value, value_len);
     kvs_insert(key, value, value_len);
-    construct_kwstring(recieved);
+    construct_kwstring(received);
 
     return tlv_success;
 }
@@ -74,7 +74,7 @@ int write_to_storage(struct TLV_holder recieved)
  * read_from_storage
  * Given a key values, retrieves the value from storage.
  */
-int read_from_storage(struct TLV_holder recieved)
+int read_from_storage(struct TLV_holder received, pid_t pid)
 {
     struct TLV_holder transmitted;
 
@@ -83,13 +83,22 @@ int read_from_storage(struct TLV_holder recieved)
 
     char * key, * value;
 
-    if(recieved.tlv_arr[INSTR_INDEX + 1].type != parse_string)
+    /*
+     * Make sure the string is actually a string first.
+     */
+
+    if(received.tlv_arr[INSTR_INDEX + 1].type != parse_string)
     {
         pr_info("[read_from_storage] - incorrect key field type");
         return tlv_failed;
     }
 
-    key = (char *)recieved.tlv_arr[INSTR_INDEX + 1].data;
+    /*
+     * Now, retrieve the value from the KVS using the given key.
+     * If it exists, copy the value into a TLV buffer and send it.
+     */
+
+    key = (char *)received.tlv_arr[INSTR_INDEX + 1].data;
 
     value = kvs_get(key);
     if(value != NULL)
@@ -99,87 +108,85 @@ int read_from_storage(struct TLV_holder recieved)
         tlv_add_string(&transmitted, value);
     }
 
+
     serialize_tlv(&transmitted, msgbuf, &msglen);
     free_tlv(&transmitted);
 
+	if(nl_send < 0)
+	
     return tlv_success;
 }
 
 /*
- * Check instruction type. THen call appropriate function depending on the
- * message type. 
+ * parse_tlv_message
+ * Deserializes a buffer into a TLV structure for message processing.  
  */
-int check_instr(struct TLV_holder recieved) {
-    int incoming_instr;
+int parse_tlv_message(int seq, int rec_pid, unsigned char* buffer, int buf_len)
+{
+    int err, op;
 
-    pr_info("nr: %d - maxObj %d", recieved.nr_of_structs, MAX_OBJS);
+    struct TLV_holder received;
+    int received_maxobjs, received_type, received_len;
 
-    if(recieved.nr_of_structs != MAX_OBJS){
-        pr_err("[check_instr] - Not correct number of objs");
+    /* Clear the TLV structure before deserializing the buffer. */
+    memset(&received, 0, sizeof(received));
+
+    err = deserialize_tlv(&received, buffer,  buf_len);
+    if(err != 0)
+    {
+        pr_err("[parse_tlv_message] - TLV message deserialization error");
         return tlv_failed;
     }
 
-    pr_info("[check_instr] - type is %d", recieved.tlv_arr[INSTR_INDEX].type);
-    if(recieved.tlv_arr[INSTR_INDEX].type != TYPE_INSTR) {
-        pr_err("[check_instr] - Not a valid instruction\n");
+    /*
+     * First, make sure that the received message is valid.
+     * Then, attempt to determine what to do with the message.
+     */
+
+    received_maxobjs = received.nr_of_structs;
+
+    received_type = received.tlv_arr[INSTR_INDEX].type;
+    received_len = received.tlv_arr[INSTR_INDEX].len;
+
+    if(received_maxobjs != MAX_OBJS || received_type != TYPE_INSTR || received_len != INT32_SIZE)
+    {
+        pr_err("[parse_tlv_message] - Malformed TLV message!");
+        pr_err("[parse_tlv_message] - max_objs = %d, type = %d, len = %d",
+            received_maxobjs, received_type, received_len);
+
+        free_tlv(&received);
         return tlv_failed;
     }
 
-    if(recieved.tlv_arr[INSTR_INDEX].len != INT32_SIZE) {
-        pr_err("[check_instr] - not a valid size \n");
-        return tlv_failed;
-    }
+    /*
+     * Message appears to be consistent, now process it!
+     */
 
-    memcpy(&incoming_instr, recieved.tlv_arr[INSTR_INDEX].data, sizeof(int32_t));
+    memcpy(&op, received.tlv_arr[INSTR_INDEX].data, sizeof(int));
 
-    switch (incoming_instr) {
+    switch(op)
+    {
         case TYPE_READ:
-            pr_info("[check_instr] - READ");
-
-            read_from_storage(recieved);
+            read_from_storage(&received);
             break;
+
         case TYPE_WRITE:
-            pr_info("[check_instr] - WRITE" );
-
-            write_to_storage(recieved);
+            write_to_storage(&received);
             break;
+
         default:
-            //TODO send error message back.
+            free_tlv(&received);
             return tlv_failed;
     }
 
+    /*
+     * Clean up after processing and return.
+     */
+
+    //return nl_send_msg(rec_pid, seq, 1, NULL);
+
+    free_tlv(&received);
     return tlv_success;
-}
-
-
-/*
- * parse_message
- * 	Checks incoming buffer and parses it as a tlv message.    
- */
-int parse_tlv_message(int seq, int rec_pid ,unsigned char* buffer, int buf_len) {
-    int err;
-
-    struct TLV_holder recieved;
-    memset(&recieved, 0 , sizeof(recieved));
-
-    err = deserialize_tlv(&recieved, buffer,  buf_len);
-    if(err != 0) {
-        pr_info("Error deseriali");
-        return tlv_failed;
-    }
-
-    pr_info("%d", TYPE_INSTR);
-    //print_tlv(&recieved); // Just for checking attributes
-
-    if(check_instr(recieved) < 0) {
-    	//TODO check instructions
-        return tlv_failed;
-    } //Check which instruction
-
-    free_tlv(&recieved);
-
-    //return tlv_success;
-    return nl_send_msg(rec_pid, seq, 1, NULL);
 }
 
 /**
@@ -198,7 +205,7 @@ int create_tlv_message(int status, unsigned char* buffer) {
     memset(&construct, 0 , sizeof(construct));
     
     if(status == 0){
-        tlv_add_integer(&construct, 1);
+        tlv_add_integer(&construct, 0);
         err = serialize_tlv(&construct, buffer, &pload_length);
         if(err != 0) {
             free_tlv(&construct);
