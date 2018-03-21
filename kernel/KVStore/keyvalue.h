@@ -9,7 +9,7 @@
 
 struct kvs_object
 {
-	int hash;
+	int key;
 	struct rhash_head node;
 
 	char * value;

@@ -7,8 +7,8 @@ struct rhashtable kvs;
 struct rhashtable_params kvs_params =
 {
 	.head_offset = offsetof(struct kvs_object, node),
-	.key_offset = offsetof(struct kvs_object, hash),
-	.key_len = FIELD_SIZEOF(struct kvs_object, hash),
+	.key_offset = offsetof(struct kvs_object, key),
+	.key_len = FIELD_SIZEOF(struct kvs_object, key),
 };
 
 /*
@@ -47,7 +47,7 @@ void kvs_exit(void)
 	{
 		while((obj = rhashtable_walk_next(&it)) && !IS_ERR(obj))
 		{
-			pr_info("[kvs_exit] - removing element with hash %d and value %s... (%d bytes)", obj->hash, obj->value, obj->value_len);
+			pr_info("[kvs_exit] - removing element with key %d and value %s... (%d bytes)", obj->key, obj->value, obj->value_len);
 			rhashtable_remove_fast(&kvs, &obj->node, kvs_params);
 
 			kfree(obj->value);
@@ -70,10 +70,12 @@ void kvs_exit(void)
 char * kvs_get(const char * key)
 {
 	struct kvs_object * obj;
+	int key_hash = jhash(key, strlen(key), 0);
 
-	obj = rhashtable_lookup_fast(&kvs, key, kvs_params);
+	obj = rhashtable_lookup_fast(&kvs, &key_hash, kvs_params);
 	if(obj == NULL)
 	{
+		pr_info("[kvs_get] - unable to find element with key %d", key_hash);
 		return NULL;
 	}
 
@@ -86,18 +88,17 @@ char * kvs_get(const char * key)
  */
 void kvs_insert(const char * key, const void * value, const int value_len)
 {
-	struct kvs_object * obj;
+	struct kvs_object * obj, * old_obj;
 
 	/* Get the container object ready. */
 
 	obj = kzalloc(sizeof(struct kvs_object), GFP_KERNEL);
-	obj->hash = jhash(key, strlen(key), 0);
 	if(!obj)
 	{
 		pr_warn("[kvs_insert] - unable to allocate KVS object!");
 		return;
 	}
-	
+
 	obj->value = kzalloc(value_len, GFP_KERNEL);
 	if(obj->value)
 	{
@@ -109,8 +110,23 @@ void kvs_insert(const char * key, const void * value, const int value_len)
 		pr_warn("[kvs_insert] - unable to allocate value buffer!");
 	}
 
-	rhashtable_insert_fast(&kvs, &obj->node, kvs_params);
-	pr_info("[kvs_insert] - inserting object with hash %d...", obj->hash);
+	/* Hash the key string and insert the element. */
+
+	obj->key = jhash(key, strlen(key), 0);
+
+	old_obj = rhashtable_insert_slow(&kvs, &obj->key, &obj->node);
+	if(old_obj != NULL)
+	{
+		kfree(old_obj->value);
+		old_obj->value = obj->value;
+
+		kfree(obj);
+
+		pr_info("[kvs_insert] - replacing object with hash %d...", old_obj->key);
+		return;
+	}
+
+	pr_info("[kvs_insert] - inserting object with hash %d...", obj->key);
 }
 
 /*
@@ -122,24 +138,15 @@ void kvs_insert(const char * key, const void * value, const int value_len)
 void kvs_remove(const char * key)
 {
 	struct kvs_object * obj;
+	int key_hash = jhash(key, strlen(key), 0);
 
-	obj = rhashtable_lookup_fast(&kvs, key, kvs_params);
+	obj = rhashtable_lookup_fast(&kvs, &key_hash, kvs_params);
 	if(obj)
 	{
+		pr_info("[kvs_remove - removing element with key %s, hash %d... (%d bytes)", key, key_hash, obj->value_len);
 		rhashtable_remove_fast(&kvs, &obj->node, kvs_params);
 
 		kfree(obj->value);
 		kfree(obj);
 	}
-}
-
-/*
- * kvs_hash()
- * Internal hash function, do not use.
- */
-u32 kvs_hash(const void * data, u32 len, u32 seed)
-{
-	const struct kvs_object * obj = data;
-
-	return jhash(&obj->hash, sizeof(obj->hash), seed);
 }
