@@ -262,7 +262,10 @@ int recieve_message(){
 	memset(nl_hdr, 0 , sizeof(struct nlmsghdr));
 	
 	printf("waiting to recieve message from kernel\n");
-    recvmsg(sock_fd, &msg, 0);
+    if(recvmsg(sock_fd, &msg, 0) <= 0){
+    	printf("Error recieving message!!!\n");
+    	return -1;
+    }
 	
     if(nl_hdr->nlmsg_pid != 0){
         printf("msg from unknown source, it has: %d \n", nl_hdr->nlmsg_pid);

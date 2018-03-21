@@ -45,11 +45,14 @@ int construct_kwstring(struct TLV_holder received) {
  * Given a key and a value. Saves that infromation in a temporary hash table.
  * If successfully completed, send key and value to a new function.
  */
-int write_to_storage(struct TLV_holder received)
+int write_to_storage(struct TLV_holder received, pid_t pid, int seqNo)
 {
     char * key, * value;
     int value_len;
-
+    char msgbuf[MAX_PAYLOAD];
+    int msglen = -1;
+	struct TLV_holder transmitted;
+	memset(&transmitted, 0 , sizeof(transmitted));
     if(received.tlv_arr[INSTR_INDEX + 1].type != parse_string
         || received.tlv_arr[INSTR_INDEX + 2].type != parse_string)
     {
@@ -64,9 +67,22 @@ int write_to_storage(struct TLV_holder received)
 
     pr_info("[write_to_storage] - key: %s", key);
     pr_info("[write_to_storage] - data: %s (%d bytes)", value, value_len);
+    
+    
     kvs_insert(key, value, value_len);
-    construct_kwstring(received);
-
+    print_tlv(&received);
+	
+	tlv_add_integer(&transmitted, 1);
+    
+    if(serialize_tlv(&transmitted, msgbuf, &msglen) < 0) {
+          free_tlv(&transmitted);
+          pr_err("falied to serialize message");            
+          return msglen;
+    }  
+    
+    if(nl_send_msg(pid, seqNo, msgbuf) < 0)
+    	return tlv_failed;
+	
     return tlv_success;
 }
 
@@ -74,15 +90,13 @@ int write_to_storage(struct TLV_holder received)
  * read_from_storage
  * Given a key values, retrieves the value from storage.
  */
-int read_from_storage(struct TLV_holder received, pid_t pid)
+int read_from_storage(struct TLV_holder received, pid_t pid, int seqNo)
 {
     struct TLV_holder transmitted;
-
     char msgbuf[MAX_PAYLOAD];
     int msglen = -1;
-
     char * key, * value;
-
+ 	memset(&transmitted, 0 , sizeof(transmitted));
     /*
      * Make sure the string is actually a string first.
      */
@@ -112,7 +126,8 @@ int read_from_storage(struct TLV_holder received, pid_t pid)
     serialize_tlv(&transmitted, msgbuf, &msglen);
     free_tlv(&transmitted);
 
-	if(nl_send < 0)
+	if(nl_send_msg(pid, seqNo, msgbuf) < 0)
+		return -1;
 	
     return tlv_success;
 }
@@ -167,11 +182,11 @@ int parse_tlv_message(int seq, int rec_pid, unsigned char* buffer, int buf_len)
     switch(op)
     {
         case TYPE_READ:
-            read_from_storage(&received);
+            read_from_storage(received, rec_pid, seq);
             break;
 
         case TYPE_WRITE:
-            write_to_storage(&received);
+            write_to_storage(received, rec_pid, seq);
             break;
 
         default:
