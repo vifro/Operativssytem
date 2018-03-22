@@ -15,10 +15,15 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 
+#define INT8_SIZE   1
+#define INT16_SIZE  2
+#define INT32_SIZE  4
 
 DATATYPES type_string = TLV_STRING;
 DATATYPES type_int    = TLV_INTEGER;
 DATATYPES type_instr  = TLV_INSTR;
+
+
 
 int byte_counter;
 
@@ -43,7 +48,7 @@ int32_t tlv_add_string(struct TLV_holder* holders, const char* string)
 * add_raw_tlv fills a TLV_holder.data with given parameters and increments
 * TLV_. 
 *
-*
+* Important, not more then 3 structs
 *
 *
 */
@@ -52,17 +57,14 @@ int32_t add_raw_tlv(struct TLV_holder* holders, const unsigned char type,
 {
     int index;    
     
-	if(holders->nr_of_structs > 1 || data == NULL || holders == NULL) 
+	if(holders->nr_of_structs > 2 || data == NULL || holders == NULL) 
         return tlv_failed;
-    
-    index = holders->nr_of_structs++; 
-    
-    if(index  > 1) 
-        return tlv_failed;
-
+	
+	index  = holders->nr_of_structs++;
+	
     holders->tlv_arr[index].type = type;
     holders->tlv_arr[index].len = len;
-    holders->tlv_arr[index].data = kmalloc(len, GFP_ATOMIC); 
+    holders->tlv_arr[index].data = kmalloc(len + 1, GFP_ATOMIC); 
     
     memcpy(holders->tlv_arr[index].data, data, len); 
     
@@ -169,7 +171,6 @@ int32_t print_tlv(struct TLV_holder *src) {
     int index = 0;    
     
     pr_info("--------------> In print_tlv <----------------\n");   
-     
     while (index < src->nr_of_structs) {
         
         if(src->tlv_arr[index].type == type_int || 
@@ -187,6 +188,6 @@ int32_t print_tlv(struct TLV_holder *src) {
               
         index++;
     }
-
+	pr_info("number of structs: %d\n", index);
     return tlv_success;
 }

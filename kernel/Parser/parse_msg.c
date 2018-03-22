@@ -32,10 +32,10 @@ int construct_kwstring(struct TLV_holder received) {
     memcpy(&value, received.tlv_arr[INSTR_INDEX + 2].data, sizeof(int32_t));
     pr_info("[write_to_storage] - data: %d", value);
     
-    sprintf(temp_string, "key:%s - value%d",
+    sprintf(temp_string, "key:%s - value: %d",
     					 (char*)received.tlv_arr[INSTR_INDEX + 1].data, value);
     pr_info("%s", temp_string);
-    
+   
     return 0;
 
 }
@@ -51,6 +51,7 @@ int write_to_storage(struct TLV_holder received, pid_t pid, int seqNo)
     int value_len;
     char msgbuf[MAX_PAYLOAD];
     int msglen = -1;
+    
 	struct TLV_holder transmitted;
 	memset(&transmitted, 0 , sizeof(transmitted));
     if(received.tlv_arr[INSTR_INDEX + 1].type != parse_string
@@ -68,11 +69,13 @@ int write_to_storage(struct TLV_holder received, pid_t pid, int seqNo)
     pr_info("[write_to_storage] - key: %s", key);
     pr_info("[write_to_storage] - data: %s (%d bytes)", value, value_len);
     
-    
+    //TODO update the value of kw_info, Might be good to use a tasklet to perform the read. 
     kvs_insert(key, value, value_len);
     print_tlv(&received);
+	construct_kwstring(received);
 	
-	tlv_add_integer(&transmitted, 1);
+	tlv_add_integer(&transmitted, pid);
+	tlv_add_integer(&transmitted, seqNo);
     
     if(serialize_tlv(&transmitted, msgbuf, &msglen) < 0) {
           free_tlv(&transmitted);
@@ -80,7 +83,7 @@ int write_to_storage(struct TLV_holder received, pid_t pid, int seqNo)
           return msglen;
     }  
     
-    if(nl_send_msg(pid, seqNo, msgbuf) < 0)
+    if(nl_send_msg(pid, seqNo, msgbuf, msglen) < 0)
     	return tlv_failed;
 	
     return tlv_success;
@@ -122,11 +125,10 @@ int read_from_storage(struct TLV_holder received, pid_t pid, int seqNo)
         tlv_add_string(&transmitted, value);
     }
 
-
     serialize_tlv(&transmitted, msgbuf, &msglen);
     free_tlv(&transmitted);
 
-	if(nl_send_msg(pid, seqNo, msgbuf) < 0)
+	if(nl_send_msg(pid, seqNo, msgbuf, msglen) < 0)
 		return -1;
 	
     return tlv_success;
@@ -147,6 +149,7 @@ int parse_tlv_message(int seq, int rec_pid, unsigned char* buffer, int buf_len)
     memset(&received, 0, sizeof(received));
 
     err = deserialize_tlv(&received, buffer,  buf_len);
+    print_tlv(&received);
     if(err != 0)
     {
         pr_err("[parse_tlv_message] - TLV message deserialization error");
@@ -179,7 +182,7 @@ int parse_tlv_message(int seq, int rec_pid, unsigned char* buffer, int buf_len)
 
     memcpy(&op, received.tlv_arr[INSTR_INDEX].data, sizeof(int));
 
-    switch(op)
+    switch(op)	
     {
         case TYPE_READ:
             read_from_storage(received, rec_pid, seq);

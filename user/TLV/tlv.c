@@ -51,7 +51,7 @@ int32_t add_raw_tlv(struct TLV_holder* holders, const unsigned char type,
 
     holders->tlv_arr[index].type = type;
     holders->tlv_arr[index].len = len;
-    holders->tlv_arr[index].data = malloc(len); 
+    holders->tlv_arr[index].data = malloc(len + 1); 
     
     memcpy(holders->tlv_arr[index].data, data, len); 
     
@@ -111,8 +111,11 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
                             int tot_bytes)
 { 
     int byte_counter = 0;
-
-    while(byte_counter < tot_bytes) {      
+    int len = 0;
+	
+    while(byte_counter < tot_bytes) {    
+    printf("in loop\n");  
+    	printf("bytecounter %d , totbytes %d \n", byte_counter, tot_bytes);
         if(dest->nr_of_structs > MAX_OBJS - 1) 
             return tlv_failed;        
         
@@ -123,10 +126,12 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
         memcpy(&dest->tlv_arr[dest->nr_of_structs].len, 
                                                 &src[byte_counter], INT16_SIZE);
         byte_counter += INT16_SIZE;
-
-        if(dest->tlv_arr[dest->nr_of_structs].len != 0) {
+		len = dest->tlv_arr[dest->nr_of_structs].len;
+		printf("--------------len %d -------------\n", len);
+        if(len != 0) {
             dest->tlv_arr[dest->nr_of_structs].data = 
                                 malloc(dest->tlv_arr[dest->nr_of_structs].len);
+            //if((byte_counter + ))
             memcpy(dest->tlv_arr[dest->nr_of_structs].data, &src[byte_counter], 
                     dest->tlv_arr[dest->nr_of_structs].len);
         
@@ -164,7 +169,7 @@ int32_t print_tlv(struct TLV_holder *src) {
             printf("len is: %d\n", (int)src->tlv_arr[index].len);
             printf("data: %s\n", (char*)src->tlv_arr[index].data);
         } else {
-            printf("this <-- is not a valid data type");
+            printf("this <-- is not a valid data type\n");
         }      
         index++;
     }

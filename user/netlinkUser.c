@@ -126,6 +126,8 @@ int loop_message(char *keyvalue){
         
         if(pload_len < 0) {
             printf("Error creating tlv");
+            close(sock_fd);
+			free(nl_hdr);
             return ERROR;    
         }
                 
@@ -143,6 +145,7 @@ int loop_message(char *keyvalue){
         memset(buffer, 0, sizeof(buffer));
         free(nl_hdr);
 		i++;
+		seqNo++;
     }
 }
 
@@ -204,6 +207,7 @@ int recv_tlv_msg(unsigned char* buffer, int pload_len) {
         
     memset(&tlv_reciever, 0 , sizeof(tlv_reciever));
     deserialize_tlv(&tlv_reciever, buffer, pload_len);
+    print_tlv(&tlv_reciever);
     free_tlv(&tlv_reciever);
     
     return SUCCESS;
@@ -223,7 +227,7 @@ int send_message(int len, unsigned char *message){
     nl_hdr->nlmsg_len = NLMSG_LENGTH(len);      // Length payload w/out padding.
     nl_hdr->nlmsg_pid = PID; 			        // process pid
     nl_hdr->nlmsg_flags = 0;
-    nl_hdr->nlmsg_seq = seqNo++;				// Keep track of respons
+    nl_hdr->nlmsg_seq = seqNo;				// Keep track of respons
 	
 	/* Point the headers infomation to the msghdr and iov */
     iov.iov_base = (void*)nl_hdr;				
@@ -275,7 +279,7 @@ int recieve_message(){
     }
     //TODO fix parameters. 
     printf("rec mess with seqnr: %d\n\n", seqNo);
-    recv_tlv_msg(NLMSG_DATA(nl_hdr), 7);
+    recv_tlv_msg(NLMSG_DATA(nl_hdr), NLMSG_PAYLOAD(nl_hdr, 0));
         
     return SUCCESS;
 }

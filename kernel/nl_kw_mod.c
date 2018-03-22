@@ -141,21 +141,22 @@ static struct attribute_group attr_group = {
 * Send back to user, given sequence number and the pid of process to be reached.
 *
 */
-int nl_send_msg(u32 rec_pid , int seqNr, char *databuf)
+int nl_send_msg(u32 rec_pid , int seqNr, char *databuf, int msglen)
 {
 	struct sk_buff *skb;
 	struct nlmsghdr *nl_hdr;
     unsigned char buffer[MAX_PAYLOAD] = {0}; //buffer used to construct message
 	
 	int err = 0;                        	 // err
-    int pload_length = 0;               	 //length of tlv payload in bytes
+    //int pload_length = 0;               	 //length of tlv payload in bytes
     char temp_string[200];
-    
+    spin_lock(&kw_info_lock);
+    udelay(400);
     sprintf(temp_string, "%d", seqNr);
     pr_info("%s", temp_string);
 	strcpy(kw_info, temp_string);
 	sysfs_notify(kw_kobj, NULL, "kw_info");
-	
+	spin_unlock(&kw_info_lock);
 	
     if(rec_pid == 0) {
         pr_err("Dont send to kernel or recieve from kernel!");
@@ -175,13 +176,13 @@ int nl_send_msg(u32 rec_pid , int seqNr, char *databuf)
     memset(buffer, 0, sizeof(buffer));
     if(databuf != NULL)
     {
-        memcpy(buffer, databuf, MAX_PAYLOAD);
-        pload_length = strlen(buffer);
+        memcpy(buffer, databuf, msglen);
+        
     }
     else
     {
-        pload_length = create_tlv_message(1, buffer);
-        if(pload_length <= 0) {
+        msglen = create_tlv_message(1, buffer);
+        if(msglen <= 0) {
             pr_err("No message to send");
             return -1;
         }
@@ -189,7 +190,9 @@ int nl_send_msg(u32 rec_pid , int seqNr, char *databuf)
 
     /* Fill the header with data */
 	nl_hdr = (struct nlmsghdr*)skb->data;
-	nl_hdr->nlmsg_len = NLMSG_LENGTH(pload_length);
+	pr_info("msglen: %d \n", msglen);
+	pr_info("msglen: %d \n", NLMSG_LENGTH(msglen));
+	nl_hdr->nlmsg_len = msglen;
 	nl_hdr->nlmsg_pid = 0;
 	nl_hdr->nlmsg_flags = 0;
 	nl_hdr->nlmsg_seq = seqNr;
@@ -200,7 +203,7 @@ int nl_send_msg(u32 rec_pid , int seqNr, char *databuf)
 	NETLINK_CB(skb).dst_group = 0; /* Unicast */
 	NETLINK_CB(skb).portid = 0; /* from kernel */
 	
-	memcpy(NLMSG_DATA(nl_hdr), buffer, pload_length);
+	memcpy(NLMSG_DATA(nl_hdr), buffer, msglen);
 
 	err =  nlmsg_unicast(nl_sock, skb, rec_pid);
 	if(err < 0) {
@@ -214,8 +217,13 @@ int nl_send_msg(u32 rec_pid , int seqNr, char *databuf)
 
 
 static void nl_recv( struct work_struct *work) {
-	//extern spinlock_t kw_info_lock
+	extern spinlock_t kw_info_lock;
+	
     msg_work_t *worker = (msg_work_t*)work;
+    pr_info("----- in nl_recv -----\n");
+    pr_info("%s\n", worker->buffer);
+    pr_info("number of bytes: %d \n", worker->buflen);
+    
     if(parse_tlv_message(worker->seq, worker->pid, worker->buffer, worker->buflen) < 0)
     	pr_err("nl_send_msg failed");
         
@@ -223,6 +231,51 @@ static void nl_recv( struct work_struct *work) {
 	kfree(worker);
 }
 
+static void nl_recv_callback2(struct sk_buff *skb){
+	struct nlmsghdr *nl_hdr;
+	u32 pid;
+    int seq, buflen;
+    unsigned char buffer[MAX_PAYLOAD]; // FIX the size
+    struct TLV_holder temp1;
+    
+    memset(&temp1, 0 , sizeof(temp1));
+	/* Receive nlmsghdr to get correct data */
+    //nl_hdr = nlmsg_hdr(skb); 
+    
+
+    nl_hdr=(struct nlmsghdr*)skb->data;
+    pid = nl_hdr->nlmsg_pid;
+    seq = nl_hdr->nlmsg_seq;
+    pr_info("----- pid: %d --- seq: %d --- \n", pid, seq);
+    /* Extract the buffer from payload */
+    buflen = NLMSG_PAYLOAD(nl_hdr, 0);
+
+    memset(buffer, 0 , sizeof(buffer));
+    memcpy(buffer, NLMSG_DATA(nl_hdr), buflen);
+    
+    deserialize_tlv(&temp1, buffer, buflen);
+    //print_tlv(&temp1);
+	//free_tlv(&temp1);
+ 	
+    
+    worker = (msg_work_t* )kmalloc(sizeof(msg_work_t),GFP_KERNEL);
+    if(worker) {
+    	pr_info("creating work items\n");
+    	
+    	INIT_WORK((struct work_struct*) worker, nl_recv);
+    	worker->seq = seq;
+    	worker->pid = pid;
+    	worker->buffer = kmalloc(sizeof(buffer), GFP_KERNEL);
+    	worker->buflen = buflen;
+    	memset(worker->buffer, 0, buflen);
+    	memcpy(worker->buffer, buffer, buflen);
+    	pr_info("worker pid: %d , worker seq: %d\n", worker->pid, worker->seq);
+    	pr_info("----- nl_recv_callback -----\n");
+    	if(queue_work(kw_wq, (struct work_struct*)worker) < 1){
+    		pr_warn("Could not queue work.\n");
+    	}
+    }
+}
 
 
 /*
@@ -230,42 +283,8 @@ static void nl_recv( struct work_struct *work) {
 *
 */
 static void nl_recv_callback(struct sk_buff *skb) {
-	struct nlmsghdr *nl_hdr;
-	u32 pid;
-    int seq;
-    int buf_len;
-    unsigned char buffer[MAX_PAYLOAD]; // FIX the size
-	spin_lock(&recieve_lock);   
-    
-
- 
- 	/* Receive nlmsghdr to get correct data */
-    nl_hdr = nlmsg_hdr(skb); 
-    
-
-    nl_hdr=(struct nlmsghdr*)skb->data;
-    pid = nl_hdr->nlmsg_pid;
-    seq = nl_hdr->nlmsg_seq;
-
-    /* Extract the buffer from payload */
-    buf_len = NLMSG_PAYLOAD(nl_hdr, 0);
-
-    memset(buffer, 0 , sizeof(buffer));
-    memcpy(buffer, NLMSG_DATA(nl_hdr), buf_len);
-    
-    worker = (msg_work_t* )kmalloc(sizeof(msg_work_t),GFP_KERNEL);
-    if(worker) {
-    	pr_info("creating work items\n");
-    	INIT_WORK((struct work_struct*) worker, nl_recv);
-    	worker->seq = nl_hdr->nlmsg_seq;
-    	worker->pid = nl_hdr->nlmsg_pid;
-    	worker->buffer = kzalloc(sizeof(buffer), GFP_KERNEL); 
-    	memcpy(worker->buffer, NLMSG_DATA(nl_hdr), NLMSG_PAYLOAD(nl_hdr, 0));
-    	worker->buflen = strlen(worker->buffer);
-    	if(queue_work(kw_wq, (struct work_struct*)worker) < 1){
-    		pr_warn("Could not queue work.\n");
-    	}
-    }
+	spin_lock(&recieve_lock);  
+	nl_recv_callback2(skb); 
     spin_unlock(&recieve_lock);
 }
 
@@ -283,7 +302,7 @@ static int __init nlmodule_init(void) {
 	};
 	spin_lock_init(&recieve_lock);
 	
-	kw_wq = alloc_workqueue("wq", WQ_MEM_RECLAIM, 0);
+	kw_wq = alloc_workqueue("wq", WQ_MEM_RECLAIM, 4);
 	if(!kw_wq) {
 		pr_err("could not allocate workqueue");
 		return -1;
