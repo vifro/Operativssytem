@@ -121,7 +121,6 @@ int loop_message(char *keyvalue){
     	sprintf(temp_string1, "%s-%d", keyvalue, seqNo);
     	temp_string = temp_string1;
         /* Message out, build, serialize, print for debugging and free */
-        printf("this is tempstring: %s\n", temp_string);
         pload_len = cr_tlv_msg(buffer, temp_string, "19900909");
         
         if(pload_len < 0) {
@@ -189,9 +188,6 @@ int cr_tlv_msg(unsigned char* buffer, char* key, char* value)
     tlv_add_string(&tlv_holder1, key);
     tlv_add_string(&tlv_holder1, value);
 
-    //printf("print tlv holder\n");
-    //print_tlv(&tlv_holder1);
-    
     serialize_tlv(&tlv_holder1, buffer, &pload_len);
     free_tlv(&tlv_holder1);
     
@@ -207,7 +203,6 @@ int recv_tlv_msg(unsigned char* buffer, int pload_len) {
         
     memset(&tlv_reciever, 0 , sizeof(tlv_reciever));
     deserialize_tlv(&tlv_reciever, buffer, pload_len);
-    print_tlv(&tlv_reciever);
     free_tlv(&tlv_reciever);
     
     return SUCCESS;

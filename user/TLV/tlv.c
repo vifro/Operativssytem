@@ -114,8 +114,7 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
     int len = 0;
 	
     while(byte_counter < tot_bytes) {    
-    printf("in loop\n");  
-    	printf("bytecounter %d , totbytes %d \n", byte_counter, tot_bytes);
+    
         if(dest->nr_of_structs > MAX_OBJS - 1) 
             return tlv_failed;        
         
@@ -127,7 +126,7 @@ int32_t deserialize_tlv(struct TLV_holder *dest, unsigned char* src,
                                                 &src[byte_counter], INT16_SIZE);
         byte_counter += INT16_SIZE;
 		len = dest->tlv_arr[dest->nr_of_structs].len;
-		printf("--------------len %d -------------\n", len);
+
         if(len != 0) {
             dest->tlv_arr[dest->nr_of_structs].data = 
                                 malloc(dest->tlv_arr[dest->nr_of_structs].len);

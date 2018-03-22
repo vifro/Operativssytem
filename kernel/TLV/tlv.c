@@ -29,17 +29,11 @@ int byte_counter;
 
 int32_t tlv_add_integer(struct TLV_holder* holders, int32_t number)
 {
-    pr_info("add_integer with type %d\n", type_int );
-    pr_info("size: %d\n", INT32_SIZE);
-    pr_info("integer: %d\n", number);
 	return add_raw_tlv(holders, type_int, INT32_SIZE, &number); 
 }
 
 int32_t tlv_add_string(struct TLV_holder* holders, const char* string) 
 {
-    pr_info("add_string with type %d\n", type_string );
-    pr_info("size: %ld\n", strlen(string) + 1);
-    pr_info("string: %s\n", string);
 	return add_raw_tlv(holders, type_string, strlen(string) + 1, string);
 }
 

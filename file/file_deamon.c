@@ -33,7 +33,7 @@
 #endif
 
 #ifndef FILENAME_D
-#define FILENAME_D "/temp/kw_data.txt" //  Filename for storing key word data
+#define FILENAME_D "/temp/kw_saved.txt" //  Filename for storing key word data
 #endif
 
 #ifndef SYSLOG_FILE
@@ -41,7 +41,7 @@
 #endif
   
 #ifndef MAX_FILELEN // Name for syslog file
-#define MAX_FILELEN 2048
+#define MAX_FILELEN 4096
 #endif
 
 int i = 0; //Counter for test, needs to be removed
@@ -51,7 +51,7 @@ pid_t pid, sid; //pid and session id
 /* file */
 struct pollfd fds;
 FILE *fp;
-char path[MAX_FILELEN];
+char path[255];
 
 /*   
  * This function reports messages to log for daemon, 
@@ -88,7 +88,7 @@ void signal_handler(int sig){
  *		For further development. Make the check then redo the try in a 
  *		fashionable manner.
  */
-void write_to_file(char message[]){
+void write_to_file(char *message){
 	
 	FILE *temp_fp;
 	int err;
@@ -97,13 +97,14 @@ void write_to_file(char message[]){
 	temp_fp = fopen(path, "a"); //open in append mode, not existing == create
 	
 	if(temp_fp == NULL){
+		perror("fopen");
 		log_message(SYSLOG_FILE, "Could not open file:");
 		log_message(SYSLOG_FILE, path);
 		exit(EXIT_FAILURE);
 	}
 	
 	log_message(SYSLOG_FILE, "Before Write");
-	err = fprintf(temp_fp, "%s %s %s %d \n","key: ", message, " - value", 2012);
+	err = fprintf(temp_fp, "%s\n", message);
 	
 	if(err < 0){
 		log_message(SYSLOG_FILE, "An error occured while writing to file");
@@ -200,8 +201,9 @@ int main(void){
     int retval;
     short revents;
     char temp_read;
-    char temp[MAX_FILELEN];
-   
+    //char temp[MAX_FILELEN];
+    char *tempstring;
+    
     log_message(SYSLOG_FILE, "opening file");
     fds.fd = open("/sys/kernel/kobject_kw/kw_info", O_RDONLY | O_NONBLOCK);
     fds.events = POLLPRI;
@@ -219,8 +221,6 @@ int main(void){
         	exit(EXIT_FAILURE);
        	}
        	
-        
-        
         log_message(SYSLOG_FILE, "polling");
         retval = poll(&fds, 1, -1);
         if(retval < 0 ){
@@ -233,15 +233,22 @@ int main(void){
 		    fp = fopen("/sys/kernel/kobject_kw/kw_info", "r");
 		    if(fp == NULL)
 		    	break;
-		    char temp[MAX_FILELEN];
-		   	log_message(SYSLOG_FILE, "Scanning\n");
-		    fscanf(fp, "%s", temp);
-		    
-            log_message(SYSLOG_FILE,temp);
-		   	write_to_file(temp);
+		    fseek(fp, 0, SEEK_END);
+			long fsize = ftell(fp);
+			fseek(fp, 0, SEEK_SET);  //same as rewind(f);
+
+			tempstring = malloc(fsize + 1);
+			fread(tempstring, fsize, 1, fp);
+		    //temp = malloc(MAX_FILELEN);
+		   	//log_message(SYSLOG_FILE, "Scanning\n");
+		    //fscanf(fp, "%s", temp);
+            log_message(SYSLOG_FILE, tempstring);
+		   	write_to_file(tempstring);
+		   	free(tempstring);
 		   	fclose(fp);	
 		   	
 		   	fds.fd = open("/sys/kernel/kobject_kw/kw_info", O_RDONLY | O_NONBLOCK);
+		   		
 		   	while(read(fds.fd, &temp_read, 1) != 0){
 		   		
 		   	}

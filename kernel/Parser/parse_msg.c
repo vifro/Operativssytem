@@ -66,15 +66,9 @@ int write_to_storage(struct TLV_holder received, pid_t pid, int seqNo)
     key = (char *)received.tlv_arr[INSTR_INDEX + 1].data;
     value = (char *)received.tlv_arr[INSTR_INDEX + 2].data;
     value_len = received.tlv_arr[INSTR_INDEX + 2].len;
-
-    pr_info("[write_to_storage] - key: %s", key);
-    pr_info("[write_to_storage] - data: %s (%d bytes)", value, value_len);
-    
-    //TODO update the value of kw_info, Might be good to use a tasklet to perform the read. 
+    pr_info("before insert\n");
     kvs_insert(key, value, value_len);
-    	
-    print_tlv(&received);
-	
+    pr_info("after insert\n");
 	tlv_add_integer(&transmitted, pid);
 	tlv_add_integer(&transmitted, seqNo);
     
@@ -142,15 +136,15 @@ int read_from_storage(struct TLV_holder received, pid_t pid, int seqNo)
 int parse_tlv_message(int seq, int rec_pid, unsigned char* buffer, int buf_len)
 {
     int err, op;
-
+	
     struct TLV_holder received;
     int received_maxobjs, received_type, received_len;
-
+	pr_info("in parse_tlv\n");
     /* Clear the TLV structure before deserializing the buffer. */
     memset(&received, 0, sizeof(received));
 
     err = deserialize_tlv(&received, buffer,  buf_len);
-    print_tlv(&received);
+    
     if(err != 0)
     {
         pr_err("[parse_tlv_message] - TLV message deserialization error");

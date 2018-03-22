@@ -138,11 +138,9 @@ static void add_kw_info(void) {
 	char *temp_string;
 	temp_string = kmalloc(sizeof(char)*MESS_SIZE_MAX, GFP_KERNEL);
     kvs_get_storage_info(temp_string);
-    
-    pr_info("%s", temp_string);
 	strcpy(kw_info, temp_string);
 	sysfs_notify(kw_kobj, NULL, "kw_info");
-	kfree(temp_string);
+	
 }
 
 /* ------------------------ netlink functions ----------------------*/
@@ -192,8 +190,6 @@ int nl_send_msg(u32 rec_pid , int seqNr, char *databuf, int msglen)
 
     /* Fill the header with data */
 	nl_hdr = (struct nlmsghdr*)skb->data;
-	pr_info("msglen: %d \n", msglen);
-	pr_info("msglen: %d \n", NLMSG_LENGTH(msglen));
 	nl_hdr->nlmsg_len = msglen;
 	nl_hdr->nlmsg_pid = 0;
 	nl_hdr->nlmsg_flags = 0;
@@ -212,18 +208,12 @@ int nl_send_msg(u32 rec_pid , int seqNr, char *databuf, int msglen)
 		pr_err("Failed to send data\n");
 		return -1;
 	}
-
-	pr_info("Sent message to pid: %d with seq: %d\n", rec_pid, seqNr);
 	return 0;
 }
 
 
 static void nl_recv( struct work_struct *work) {	
     msg_work_t *worker = (msg_work_t*)work;
-    pr_info("----- in nl_recv -----\n");
-    pr_info("%s\n", worker->buffer);
-    pr_info("number of bytes: %d \n", worker->buflen);
-    
     if(parse_tlv_message(worker->seq, worker->pid, worker->buffer, worker->buflen) < 0)
     	pr_err("nl_send_msg failed");
         
@@ -245,16 +235,11 @@ static void nl_recv_callback2(struct sk_buff *skb){
     nl_hdr=(struct nlmsghdr*)skb->data;
     pid = nl_hdr->nlmsg_pid;
     seq = nl_hdr->nlmsg_seq;
-    pr_info("----- pid: %d --- seq: %d --- \n", pid, seq);
     /* Extract the buffer from payload */
     buflen = NLMSG_PAYLOAD(nl_hdr, 0);
 
     memset(buffer, 0 , sizeof(buffer));
     memcpy(buffer, NLMSG_DATA(nl_hdr), buflen);
-    
-    //deserialize_tlv(&temp1, buffer, buflen);
-    //print_tlv(&temp1);
-	//free_tlv(&temp1);
    
     worker = (msg_work_t* )kmalloc(sizeof(msg_work_t),GFP_KERNEL);
     if(worker) {
@@ -267,8 +252,6 @@ static void nl_recv_callback2(struct sk_buff *skb){
     	worker->buflen = buflen;
     	memset(worker->buffer, 0, buflen);
     	memcpy(worker->buffer, buffer, buflen);
-    	pr_info("worker pid: %d , worker seq: %d\n", worker->pid, worker->seq);
-    	pr_info("----- nl_recv_callback -----\n");
     	if(queue_work(kw_wq, (struct work_struct*)worker) < 1){
     		pr_warn("Could not queue work.\n");
     	}
@@ -346,6 +329,8 @@ static int __init nlmodule_init(void) {
 static void __exit nlmodule_exit(void) {
 	netlink_kernel_release(nl_sock);
 	destroy_workqueue(kw_wq);
+	add_kw_info();
+	msleep(10000);
 	kvs_exit();	
 	kobject_put(kw_kobj);
 	pr_info("exiting the nl module");
