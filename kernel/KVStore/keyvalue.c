@@ -61,6 +61,39 @@ void kvs_exit(void)
 	rhashtable_destroy(&kvs);
 }
 
+
+/*
+ * 
+ *
+ *
+ */
+void kvs_get_storage_info(char* finalstring)
+{
+	char temp[100];
+	
+	struct rhashtable_iter it;
+	struct kvs_object * obj;
+	memset(temp, 0, sizeof(temp));
+	
+
+	rhashtable_walk_enter(&kvs, &it);
+	
+	obj = ERR_PTR(rhashtable_walk_start(&it));
+	if(!IS_ERR(obj))
+	{
+		while((obj = rhashtable_walk_next(&it)) && !IS_ERR(obj))
+		{
+			sprintf(temp, "key: %d & value: %s\n",obj->key , obj->value);
+			strcat(finalstring, temp);
+		}
+
+		rhashtable_walk_stop(&it);
+	}
+
+	rhashtable_walk_exit(&it);
+	
+}
+
 /*
  * kvs_get()
  * Retrieves the data block for an element with a given key.
@@ -86,7 +119,7 @@ char * kvs_get(const char * key)
  * kvs_insert()
  * Inserts a given value with a given key of a given length.
  */
-void kvs_insert(const char * key, const void * value, const int value_len)
+int kvs_insert(const char * key, const void * value, const int value_len)
 {
 	struct kvs_object * obj, * old_obj;
 
@@ -96,7 +129,7 @@ void kvs_insert(const char * key, const void * value, const int value_len)
 	if(!obj)
 	{
 		pr_warn("[kvs_insert] - unable to allocate KVS object!");
-		return;
+		return -1;
 	}
 
 	obj->value = kzalloc(value_len, GFP_KERNEL);
@@ -108,6 +141,7 @@ void kvs_insert(const char * key, const void * value, const int value_len)
 	else
 	{
 		pr_warn("[kvs_insert] - unable to allocate value buffer!");
+		return -1;
 	}
 
 	/* Hash the key string and insert the element. */
@@ -123,10 +157,11 @@ void kvs_insert(const char * key, const void * value, const int value_len)
 		kfree(obj);
 
 		pr_info("[kvs_insert] - replacing object with hash %d...", old_obj->key);
-		return;
+		return -1;
 	}
 
 	pr_info("[kvs_insert] - inserting object with hash %d...", obj->key);
+	return 0;
 }
 
 /*

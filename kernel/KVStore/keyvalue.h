@@ -24,8 +24,9 @@ bool kvs_init(void);
 void kvs_exit(void);
 
 char * kvs_get(const char * key);
+void kvs_get_storage_info(char *temp_string);
 
-void kvs_insert(const char * key, const void * value, const int len);
+int kvs_insert(const char * key, const void * value, const int len);
 void kvs_remove(const char * key);
 
 #endif

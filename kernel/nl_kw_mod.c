@@ -50,6 +50,10 @@
 #define MAX_PAYLOAD 512
 #endif
 
+#ifndef MESS_SIZE_MAX
+#define MESS_SIZE_MAX 2048
+#endif
+
 unsigned char *ptr;
 struct sock *nl_sock = NULL;
 
@@ -67,17 +71,11 @@ typedef struct {
 msg_work_t *worker;
 
 
-
-static spinlock_t kw_info_lock;
-EXPORT_SYMBOL(kw_info_lock);
-
 static spinlock_t recieve_lock;
 
 /* ------------------------------ sysfs----------------------------*/
 
-#ifndef MESS_SIZE_MAX
-#define MESS_SIZE_MAX 256
-#endif
+
 
 /*
  * This module shows how to create a simple subdirectory in sysfs called
@@ -136,10 +134,21 @@ static struct attribute_group attr_group = {
 };
 
 
+static void add_kw_info(void) {
+	char *temp_string;
+	temp_string = kmalloc(sizeof(char)*MESS_SIZE_MAX, GFP_KERNEL);
+    kvs_get_storage_info(temp_string);
+    
+    pr_info("%s", temp_string);
+	strcpy(kw_info, temp_string);
+	sysfs_notify(kw_kobj, NULL, "kw_info");
+	kfree(temp_string);
+}
+
 /* ------------------------ netlink functions ----------------------*/
 /*
 * Send back to user, given sequence number and the pid of process to be reached.
-*
+* 
 */
 int nl_send_msg(u32 rec_pid , int seqNr, char *databuf, int msglen)
 {
@@ -149,14 +158,7 @@ int nl_send_msg(u32 rec_pid , int seqNr, char *databuf, int msglen)
 	
 	int err = 0;                        	 // err
     //int pload_length = 0;               	 //length of tlv payload in bytes
-    char temp_string[200];
-    spin_lock(&kw_info_lock);
-    udelay(400);
-    sprintf(temp_string, "%d", seqNr);
-    pr_info("%s", temp_string);
-	strcpy(kw_info, temp_string);
-	sysfs_notify(kw_kobj, NULL, "kw_info");
-	spin_unlock(&kw_info_lock);
+    
 	
     if(rec_pid == 0) {
         pr_err("Dont send to kernel or recieve from kernel!");
@@ -216,9 +218,7 @@ int nl_send_msg(u32 rec_pid , int seqNr, char *databuf, int msglen)
 }
 
 
-static void nl_recv( struct work_struct *work) {
-	extern spinlock_t kw_info_lock;
-	
+static void nl_recv( struct work_struct *work) {	
     msg_work_t *worker = (msg_work_t*)work;
     pr_info("----- in nl_recv -----\n");
     pr_info("%s\n", worker->buffer);
@@ -242,7 +242,6 @@ static void nl_recv_callback2(struct sk_buff *skb){
 	/* Receive nlmsghdr to get correct data */
     //nl_hdr = nlmsg_hdr(skb); 
     
-
     nl_hdr=(struct nlmsghdr*)skb->data;
     pid = nl_hdr->nlmsg_pid;
     seq = nl_hdr->nlmsg_seq;
@@ -253,11 +252,10 @@ static void nl_recv_callback2(struct sk_buff *skb){
     memset(buffer, 0 , sizeof(buffer));
     memcpy(buffer, NLMSG_DATA(nl_hdr), buflen);
     
-    deserialize_tlv(&temp1, buffer, buflen);
+    //deserialize_tlv(&temp1, buffer, buflen);
     //print_tlv(&temp1);
 	//free_tlv(&temp1);
- 	
-    
+   
     worker = (msg_work_t* )kmalloc(sizeof(msg_work_t),GFP_KERNEL);
     if(worker) {
     	pr_info("creating work items\n");
@@ -288,7 +286,6 @@ static void nl_recv_callback(struct sk_buff *skb) {
     spin_unlock(&recieve_lock);
 }
 
-
 /**
 * module init:
 *			Set callback function to the one declared in this file.
@@ -296,6 +293,7 @@ static void nl_recv_callback(struct sk_buff *skb) {
 */
 static int __init nlmodule_init(void) {
 	int ret;
+	
 	struct netlink_kernel_cfg cfg = {
 		.groups = 1,
 		.input = nl_recv_callback,
@@ -307,15 +305,7 @@ static int __init nlmodule_init(void) {
 		pr_err("could not allocate workqueue");
 		return -1;
 	}
-	/*
-	 * Create a simple kobject with the name of "kobject_example",
-	 * located under /sys/kernel/
-	 *
-	 * As this is a simple directory, no uevent will be sent to
-	 * userspace.  That is why this function should not be used for
-	 * any type of dynamic kobjects, where the name and number are
-	 * not known ahead of time.
-	 */
+	
 	kw_kobj = kobject_create_and_add("kobject_kw", kernel_kobj);
 	if (!kw_kobj)
 		return -ENOMEM;
@@ -327,9 +317,8 @@ static int __init nlmodule_init(void) {
 		pr_err("Cant create sysfs_group");
 		kobject_put(kw_kobj);
 		netlink_kernel_release(nl_sock);
-	}
+	}	
 	
-
 	printk("Entering: %s\n", __FUNCTION__);
 	nl_sock = netlink_kernel_create(&init_net, NETLINK_USER, &cfg);
 
@@ -356,7 +345,8 @@ static int __init nlmodule_init(void) {
 */
 static void __exit nlmodule_exit(void) {
 	netlink_kernel_release(nl_sock);
-	kvs_exit();
+	destroy_workqueue(kw_wq);
+	kvs_exit();	
 	kobject_put(kw_kobj);
 	pr_info("exiting the nl module");
 }

@@ -20,6 +20,8 @@ DATATYPES parse_int    = TLV_INTEGER;
 #define INSTR_INDEX 0
 #endif
 
+
+
 enum { TYPE_READ, TYPE_WRITE, TYPE_INSTR = 255 };
 
 int construct_kwstring(struct TLV_holder received) {
@@ -35,7 +37,6 @@ int construct_kwstring(struct TLV_holder received) {
     sprintf(temp_string, "key:%s - value: %d",
     					 (char*)received.tlv_arr[INSTR_INDEX + 1].data, value);
     pr_info("%s", temp_string);
-   
     return 0;
 
 }
@@ -71,8 +72,8 @@ int write_to_storage(struct TLV_holder received, pid_t pid, int seqNo)
     
     //TODO update the value of kw_info, Might be good to use a tasklet to perform the read. 
     kvs_insert(key, value, value_len);
+    	
     print_tlv(&received);
-	construct_kwstring(received);
 	
 	tlv_add_integer(&transmitted, pid);
 	tlv_add_integer(&transmitted, seqNo);

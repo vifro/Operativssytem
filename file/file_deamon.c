@@ -41,7 +41,7 @@
 #endif
   
 #ifndef MAX_FILELEN // Name for syslog file
-#define MAX_FILELEN 255
+#define MAX_FILELEN 2048
 #endif
 
 int i = 0; //Counter for test, needs to be removed
@@ -97,7 +97,8 @@ void write_to_file(char message[]){
 	temp_fp = fopen(path, "a"); //open in append mode, not existing == create
 	
 	if(temp_fp == NULL){
-		log_message(SYSLOG_FILE, "Could not open file");
+		log_message(SYSLOG_FILE, "Could not open file:");
+		log_message(SYSLOG_FILE, path);
 		exit(EXIT_FAILURE);
 	}
 	
@@ -230,9 +231,10 @@ int main(void){
         } else{
 		    close(fds.fd);
 		    fp = fopen("/sys/kernel/kobject_kw/kw_info", "r");
-		    
+		    if(fp == NULL)
+		    	break;
 		    char temp[MAX_FILELEN];
-		   	
+		   	log_message(SYSLOG_FILE, "Scanning\n");
 		    fscanf(fp, "%s", temp);
 		    
             log_message(SYSLOG_FILE,temp);
