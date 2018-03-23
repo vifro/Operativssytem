@@ -52,7 +52,7 @@ int conf_msg(int option, char* message, int key, unsigned char* buffer);
 int send_message(int payload_length,unsigned char* mess);
 int recieve_message(void);
 int open_connection(void);
-int cr_tlv_msg(unsigned char* buffer, char* string, char * number);
+int cr_tlv_msg(unsigned char* buffer, char* string, char * number, int status);
 int recv_tlv_msg(unsigned char* buffer, int pload_len);
 int loop_message(char *keyvalue);
 
@@ -114,7 +114,6 @@ int loop_message(char *keyvalue){
     char temp_string1[256];
     char temp_string2[256];
     int pload_len = 0;
-    int err = 0;
     int i = 0;
 
 	while(i < 10){
@@ -126,7 +125,7 @@ int loop_message(char *keyvalue){
     	sprintf(temp_string2, "%d%d",seqNo, i);
     	temp_value = temp_string2;
         /* Message out, build, serialize, print for debugging and free */
-        pload_len = cr_tlv_msg(buffer, temp_key, temp_value);
+        pload_len = cr_tlv_msg(buffer, temp_key, temp_value, WRITE_INSTR);
         
         if(pload_len < 0) {
             printf("Error creating tlv");
@@ -151,6 +150,30 @@ int loop_message(char *keyvalue){
 		i++;
 		seqNo++;
     }
+    
+    /* Recieve a message */
+    pload_len = cr_tlv_msg(buffer, temp_key, temp_value, READ_INSTR);
+        
+    if(pload_len < 0) {
+        printf("Error creating tlv");
+        close(sock_fd);
+		free(nl_hdr);
+        return ERROR;    
+    }
+ 	
+	if(send_message(pload_len, buffer) != 0){
+			exit(-1);
+	}
+		
+	if(recieve_message() != 0){
+		printf("an error occured while recieving message\n");
+		close(sock_fd);
+		free(nl_hdr);
+		return ERROR;
+	}
+       
+       free(nl_hdr);
+    
 }
 
 
@@ -182,17 +205,26 @@ void set_dest_addr(){
     dest_addr.nl_groups = 0;
 }
 
-int cr_tlv_msg(unsigned char* buffer, char* key, char* value)
+int cr_tlv_msg(unsigned char* buffer, char* key, char* value, int status)
 {
     struct TLV_holder tlv_holder1;
     int pload_len = -1;
     
     memset(&tlv_holder1, 0 , sizeof(tlv_holder1));
-    
-    tlv_add_instruction(&tlv_holder1, WRITE_INSTR);
-    tlv_add_string(&tlv_holder1, key);
-    tlv_add_string(&tlv_holder1, value);
-
+    printf("status %d\n", status);
+    if(status == WRITE_INSTR) {
+		tlv_add_instruction(&tlv_holder1, WRITE_INSTR);
+		tlv_add_string(&tlv_holder1, key);
+		tlv_add_string(&tlv_holder1, value);
+    } else if(status == READ_INSTR) {
+    	tlv_add_instruction(&tlv_holder1, READ_INSTR);
+    	tlv_add_string(&tlv_holder1, key);
+    } else {
+    	free_tlv(&tlv_holder1);
+    	close(sock_fd);
+		free(nl_hdr);
+      	exit(EXIT_FAILURE);
+    }
     serialize_tlv(&tlv_holder1, buffer, &pload_len);
     free_tlv(&tlv_holder1);
     

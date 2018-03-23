@@ -113,6 +113,7 @@ int read_from_storage(struct TLV_holder received, pid_t pid, int seqNo)
     key = (char *)received.tlv_arr[INSTR_INDEX + 1].data;
 
     value = kvs_get(key);
+    pr_info("value from kvs: %s\n", key);
     if(value != NULL)
     {
         memset(&transmitted, 0, sizeof(struct TLV_holder));
@@ -160,11 +161,10 @@ int parse_tlv_message(int seq, int rec_pid, unsigned char* buffer, int buf_len)
      */
 
     received_maxobjs = received.nr_of_structs;
-
     received_type = received.tlv_arr[INSTR_INDEX].type;
     received_len = received.tlv_arr[INSTR_INDEX].len;
 
-    if(received_maxobjs != MAX_OBJS || received_type != TYPE_INSTR || received_len != INT32_SIZE)
+    if(received_maxobjs > MAX_OBJS || received_type != TYPE_INSTR || received_len != INT32_SIZE)
     {
         pr_err("[parse_tlv_message] - Malformed TLV message!");
         pr_err("[parse_tlv_message] - max_objs = %d, type = %d, len = %d",
