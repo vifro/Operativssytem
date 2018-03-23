@@ -330,7 +330,7 @@ static void __exit nlmodule_exit(void) {
 	netlink_kernel_release(nl_sock);
 	destroy_workqueue(kw_wq);
 	add_kw_info();
-	msleep(10000);
+	msleep(1000);
 	kvs_exit();	
 	kobject_put(kw_kobj);
 	pr_info("exiting the nl module");

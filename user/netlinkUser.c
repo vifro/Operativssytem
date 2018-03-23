@@ -108,8 +108,11 @@ int main(int argc, char *argv[]) {
 int loop_message(char *keyvalue){
 	struct TLV_holder tlv_holder1, tlv_holder2;
     unsigned char buffer[MAX_PAYLOAD];
-    char *temp_string;
+    char *temp_key;
+    char *temp_value;
+    
     char temp_string1[256];
+    char temp_string2[256];
     int pload_len = 0;
     int err = 0;
     int i = 0;
@@ -118,10 +121,12 @@ int loop_message(char *keyvalue){
     	sleep(1); // seconds
     	
     	
-    	sprintf(temp_string1, "%s-%d", keyvalue, seqNo);
-    	temp_string = temp_string1;
+    	sprintf(temp_string1, "%s-%d", keyvalue, i);
+    	temp_key = temp_string1;
+    	sprintf(temp_string2, "%d%d",seqNo, i);
+    	temp_value = temp_string2;
         /* Message out, build, serialize, print for debugging and free */
-        pload_len = cr_tlv_msg(buffer, temp_string, "19900909");
+        pload_len = cr_tlv_msg(buffer, temp_key, temp_value);
         
         if(pload_len < 0) {
             printf("Error creating tlv");
@@ -232,7 +237,6 @@ int send_message(int len, unsigned char *message){
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1; 						// number of iov structs. 
 
-
    	/* Copy the message to payload */
     memcpy(NLMSG_DATA(nl_hdr), message, len);
 
@@ -272,7 +276,7 @@ int recieve_message(){
     if(nl_hdr->nlmsg_pid != 0){
         printf("msg from unknown source, it has: %d \n", nl_hdr->nlmsg_pid);
     }
-    //TODO fix parameters. 
+    
     printf("rec mess with seqnr: %d\n\n", seqNo);
     recv_tlv_msg(NLMSG_DATA(nl_hdr), NLMSG_PAYLOAD(nl_hdr, 0));
         

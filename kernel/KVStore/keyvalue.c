@@ -80,7 +80,7 @@ void kvs_get_storage_info(char* finalstring)
 	{
 		while((obj = rhashtable_walk_next(&it)) && !IS_ERR(obj))
 		{
-			sprintf(temp, "key:%d&value:%s", obj->key , obj->value);
+			sprintf(temp, "key:%d&value:%s # ", obj->key , obj->value);
 			strcat(finalstring, temp);
 		}
 		rhashtable_walk_stop(&it);

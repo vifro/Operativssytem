@@ -66,9 +66,9 @@ int write_to_storage(struct TLV_holder received, pid_t pid, int seqNo)
     key = (char *)received.tlv_arr[INSTR_INDEX + 1].data;
     value = (char *)received.tlv_arr[INSTR_INDEX + 2].data;
     value_len = received.tlv_arr[INSTR_INDEX + 2].len;
-    pr_info("before insert\n");
+    pr_info("insert value\n");
     kvs_insert(key, value, value_len);
-    pr_info("after insert\n");
+    pr_info("done inserting value\n");
 	tlv_add_integer(&transmitted, pid);
 	tlv_add_integer(&transmitted, seqNo);
     
@@ -136,8 +136,11 @@ int read_from_storage(struct TLV_holder received, pid_t pid, int seqNo)
 int parse_tlv_message(int seq, int rec_pid, unsigned char* buffer, int buf_len)
 {
     int err, op;
-	
+	char msgbuf[MAX_PAYLOAD];
     struct TLV_holder received;
+    struct TLV_holder temp_holder;
+    int msglen;
+    
     int received_maxobjs, received_type, received_len;
 	pr_info("in parse_tlv\n");
     /* Clear the TLV structure before deserializing the buffer. */
@@ -166,7 +169,10 @@ int parse_tlv_message(int seq, int rec_pid, unsigned char* buffer, int buf_len)
         pr_err("[parse_tlv_message] - Malformed TLV message!");
         pr_err("[parse_tlv_message] - max_objs = %d, type = %d, len = %d",
             received_maxobjs, received_type, received_len);
-
+        
+        tlv_add_integer(&temp_holder, -1);
+        serialize_tlv(&temp_holder, msgbuf, &msglen);
+		nl_send_msg(rec_pid , seq, buffer, msglen);
         free_tlv(&received);
         return tlv_failed;
     }

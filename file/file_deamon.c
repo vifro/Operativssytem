@@ -92,12 +92,9 @@ void write_to_file(char *message){
 	
 	FILE *temp_fp;
 	int err;
-		
 	
-	temp_fp = fopen(path, "a"); //open in append mode, not existing == create
-	
+	temp_fp = fopen(path,"w+"); //open in append mode, not existing == create
 	if(temp_fp == NULL){
-		perror("fopen");
 		log_message(SYSLOG_FILE, "Could not open file:");
 		log_message(SYSLOG_FILE, path);
 		exit(EXIT_FAILURE);
@@ -162,7 +159,7 @@ void create_daemon(){
         exit(EXIT_FAILURE);
     }
     
-    /* Since a terminal cant use terminal its good practice to close --> */
+    /* Since a terminal cant use daemon its good practice to close --> */
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
